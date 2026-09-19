@@ -16,6 +16,15 @@ until [ "$("${ADB[@]}" shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; 
 done
 sleep 5
 
+# The API-30 AVD's SystemUI hangs and its modal ANR dialog eats every tap
+# (proven on the F21 image): kill it and let a healthy instance restart.
+"${ADB[@]}" root >/dev/null 2>&1 || true
+sleep 3
+"${ADB[@]}" wait-for-device
+SYSPID=$("${ADB[@]}" shell pidof com.android.systemui | tr -d '\r')
+[ -n "$SYSPID" ] && "${ADB[@]}" shell kill "$SYSPID" || true
+sleep 6
+
 read -r W H < <("${ADB[@]}" shell wm size | tr -d '\r' | sed -E 's/.*: ([0-9]+)x([0-9]+)/\1 \2/')
 [ -n "${W:-}" ] && [ -n "${H:-}" ]
 KT=$(( H * 55 / 100 ))
