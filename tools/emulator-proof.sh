@@ -23,7 +23,7 @@ KH=$(( H - KT ))
 
 tapf() {
   awk -v x="$1" -v y="$2" -v w="$W" -v kt="$KT" -v kh="$KH" \
-    'BEGIN{ printf "%d %d", x*w, kt + y*kh }'
+    'BEGIN{ printf "%d %d\n", x*w, kt + y*kh }'
 }
 tap() {
   read -r tx ty < <(tapf "$1" "$2")
