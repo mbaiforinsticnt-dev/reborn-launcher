@@ -59,7 +59,7 @@ PY
 
 TOKEN="$(cat "$HOME/.emulator_console_auth_token" | tr -d '\r\n')"
 emu_console() {
-  { sleep 1; echo "auth $TOKEN"; sleep 1; echo "$1"; sleep 2; } | nc localhost 5554 >/dev/null 2>&1 || true
+  { sleep 1; echo "auth $TOKEN"; sleep 1; echo "$1"; sleep 2; } | timeout 10 nc localhost 5554 >/dev/null 2>&1 || true
 }
 
 echo "screen ${W}x${H}; keypad top $KT height $KH"
