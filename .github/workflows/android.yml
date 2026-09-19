@@ -27,6 +27,17 @@ jobs:
         with:
           name: reborn-launcher-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish debug APK to builds branch
+        run: |
+          git config user.name "Reborn CI"
+          git config user.email "reborn-ci@users.noreply.github.com"
+          cp app/build/outputs/apk/debug/app-debug.apk /tmp/reborn-debug.apk
+          if git fetch origin builds:builds 2>/dev/null; then git checkout builds; else git checkout --orphan builds; git rm -rf . >/dev/null 2>&1 || true; fi
+          mkdir -p apk
+          cp /tmp/reborn-debug.apk apk/reborn-launcher-debug.apk
+          git add apk/reborn-launcher-debug.apk
+          git commit -m "Debug APK from ${{ github.sha }}" || exit 0
+          git push -f origin builds
 
   emulator-proof:
     if: github.event.head_commit.message != 'Add emulator proof screenshots'
