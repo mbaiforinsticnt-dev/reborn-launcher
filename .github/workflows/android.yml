@@ -1,0 +1,72 @@
+name: Android build
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  debug-apk:
+    if: github.event.head_commit.message != 'Add emulator proof screenshots'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: gradle --no-daemon clean assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reborn-launcher-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+  emulator-proof:
+    if: github.event.head_commit.message != 'Add emulator proof screenshots'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: gradle --no-daemon assembleDebug
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: pixel
+          emulator-options: -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+          disable-animations: true
+          script: |
+            chmod +x tools/emulator-proof.sh
+            ./tools/emulator-proof.sh
+      - name: Validate PNG signatures
+        run: |
+          for f in screenshots/*.png; do test "$(head -c 8 "$f" | xxd -p)" = "89504e470d0a1a0a"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reborn-launcher-emulator-proof
+          path: screenshots/*.png
+      - name: Publish proof screenshots to repository
+        run: |
+          git config user.name "Reborn CI"
+          git config user.email "reborn-ci@users.noreply.github.com"
+          git add screenshots/*.png
+          git commit -m "Add emulator proof screenshots" || exit 0
+          git reset --hard HEAD
+          git fetch origin main
+          git rebase origin/main
+          git push
+      - name: Verify screenshots exist
+        run: test -s screenshots/01-idle-keypad.png -a -s screenshots/05-sms-inbox.png -a -s screenshots/08-incoming-call.png -a -s screenshots/09-calllog.png
