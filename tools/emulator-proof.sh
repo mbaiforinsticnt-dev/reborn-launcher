@@ -64,6 +64,8 @@ emu_console() {
 
 echo "screen ${W}x${H}; keypad top $KT height $KH"
 
+"${ADB[@]}" install -r app/build/outputs/apk/debug/app-debug.apk
+
 # Permissions must exist before the launcher queries providers.
 for perm in CALL_PHONE READ_CONTACTS READ_CALL_LOG READ_SMS SEND_SMS; do
   "${ADB[@]}" shell pm grant "$PKG" "android.permission.$perm"
