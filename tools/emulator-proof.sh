@@ -65,6 +65,13 @@ emu_console() {
 echo "screen ${W}x${H}; keypad top $KT height $KH"
 
 "${ADB[@]}" install -r app/build/outputs/apk/debug/app-debug.apk
+"${ADB[@]}" shell pm list packages | tr -d '\r' | grep "$PKG" || {
+  echo "DIAG: $PKG not in pm list packages after install:"
+  "${ADB[@]}" shell pm list packages | head -30
+  exit 1
+}
+echo "DIAG: installed: $("${ADB[@]}" shell dumpsys package "$PKG" | tr -d '\r' | grep -m1 versionName)"
+"${ADB[@]}" shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER | tr -d '\r' | tail -3
 
 # Permissions must exist before the launcher queries providers.
 for perm in CALL_PHONE READ_CONTACTS READ_CALL_LOG READ_SMS SEND_SMS; do
@@ -73,6 +80,9 @@ done
 
 "${ADB[@]}" shell am start -n "$PKG/.MainActivity"
 sleep 5
+FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
+echo "DIAG foreground: $FG"
+echo "$FG" | grep -q "$PKG" || { echo "DIAG: launcher not foreground after am start - aborting"; exit 1; }
 shot 01-idle-keypad
 
 tap_key CENTER; sleep 2; shot 02-menu
