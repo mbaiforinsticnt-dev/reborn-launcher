@@ -78,8 +78,12 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     }
 
     private void refreshSms() {
-        final List<PhoneStore.Sms> sms = PhoneStore.sms(this, 40);
-        final int unread = PhoneStore.unreadSms(this);
+        final List<PhoneStore.Sms> sms;
+        final int unread;
+        try {
+            sms = PhoneStore.sms(this, 40);
+            unread = PhoneStore.unreadSms(this);
+        } catch (Exception e) { return; }
         mainHandler.post(() -> {
             cacheSms = sms;
             cacheUnread = unread;
@@ -88,8 +92,12 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     }
 
     private void refreshCallLog() {
-        final List<String[]> log = PhoneStore.callLog(this, 40);
-        final int missed = PhoneStore.missedCalls(this);
+        final List<String[]> log;
+        final int missed;
+        try {
+            log = PhoneStore.callLog(this, 40);
+            missed = PhoneStore.missedCalls(this);
+        } catch (Exception e) { return; }
         mainHandler.post(() -> {
             cacheCallLog = log;
             cacheMissed = missed;
@@ -98,7 +106,10 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     }
 
     private void refreshContacts() {
-        final List<String[]> contacts = PhoneStore.contacts(this, 60);
+        final List<String[]> contacts;
+        try {
+            contacts = PhoneStore.contacts(this, 60);
+        } catch (Exception e) { return; }
         mainHandler.post(() -> {
             cacheContacts = contacts;
             if (ui != null) ui.dataChanged();
@@ -119,7 +130,11 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
                 bgHandler.postDelayed(refreshTask, 400);
             }
         };
-        getContentResolver().registerContentObserver(uri, true, observer);
+        try {
+            getContentResolver().registerContentObserver(uri, true, observer);
+        } catch (Exception ignored) {
+            // Never let observer registration kill launch.
+        }
         return observer;
     }
 
