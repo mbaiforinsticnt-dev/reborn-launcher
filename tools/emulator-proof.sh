@@ -28,8 +28,16 @@ done
 sleep 6
 
 
-read -r W H < <("${ADB[@]}" shell wm size | tr -d '\r' | sed -E 's/.*: ([0-9]+)x([0-9]+)/\1 \2/')
-[ -n "${W:-}" ] && [ -n "${H:-}" ]
+# adb shell can be briefly unresponsive right after the SystemUI kill; retry.
+W=""; H=""
+for i in $(seq 1 10); do
+  SZ=$("${ADB[@]}" shell wm size 2>/dev/null | tr -d '\r' | sed -E 's/.*: ([0-9]+)x([0-9]+)/\1 \2/') || true
+  read -r W H <<< "$SZ"
+  [ -n "$W" ] && [ -n "$H" ] && break
+  echo "DIAG: wm size unreadable (attempt $i); retrying"
+  sleep 4
+done
+[ -n "$W" ] && [ -n "$H" ] || { echo "DIAG: could not read screen size"; exit 1; }
 KT=$(( H * 55 / 100 ))
 
 # This image ANRs random system apps and the modal dialog eats every tap.
