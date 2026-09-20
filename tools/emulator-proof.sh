@@ -38,59 +38,6 @@ for i in $(seq 1 10); do
   sleep 4
 done
 [ -n "$W" ] && [ -n "$H" ] || { echo "DIAG: could not read screen size"; exit 1; }
-# Keypad geometry from a real frame: the keypad background is dark slate
-# (32,36,42) and the system nav bar is pure black. wm-size fractions lie
-# because the app window excludes the nav bar (proven: assumed KT=1056 but
-# measured 986; taps landed one row low and opened the dialer instead of
-# the menu).
-KT=""; KH=""
-for i in 1 2 3 4 5; do
-  "${ADB[@]}" exec-out screencap > /tmp/reborn_geo.raw 2>/dev/null || true
-  if GEO=$(python3 - /tmp/reborn_geo.raw <<'PY'
-import struct, sys
-d = open(sys.argv[1], 'rb').read()
-if len(d) < 12:
-    sys.exit(1)
-w, h, fmt = struct.unpack('<III', d[:12])
-px = d[12:]
-if len(px) != w * h * 4:
-    if len(d) == w * h * 4:
-        px = d
-    else:
-        sys.exit(1)
-def ch(x, y, c):
-    return px[(y * w + x) * 4 + c]
-x = w // 2
-run = 0
-KT = None
-for y in range(h // 4, h):
-    dark = (ch(x, y, 0) + ch(x, y, 1) + ch(x, y, 2)) < 240
-    if dark:
-        run += 1
-        if run >= 100:
-            KT = y - 99
-            break
-    else:
-        run = 0
-if KT is None:
-    sys.exit(1)
-y = h - 1
-nx = w // 16  # away from the nav-bar buttons (triangle/circle/square)
-while y > KT and ch(nx, y, 0) == 0 and ch(nx, y, 1) == 0 and ch(nx, y, 2) == 0:
-    y -= 1
-NT = y + 1
-if NT < KT + 200:
-    NT = h
-print(KT, NT - KT)
-PY
-); then
-    read -r KT KH <<< "$GEO"
-    [ -n "$KT" ] && [ -n "$KH" ] && break
-  fi
-  echo "DIAG: geometry detection failed (attempt $i); retrying"
-  sleep 3
-done
-[ -n "$KT" ] && [ -n "$KH" ] || { echo "DIAG: could not detect keypad geometry"; exit 1; }
 
 # This image ANRs random system apps and the modal dialog eats every tap.
 # Watchdog sweeps every 4s: kill the ANR'd package and tap "Wait" away.
@@ -201,6 +148,60 @@ sleep 5
 FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
 echo "DIAG foreground: $FG"
 echo "$FG" | grep -q "$PKG" || { echo "DIAG: launcher not foreground after am start - aborting"; exit 1; }
+# Keypad geometry from a real frame: the keypad background is dark slate
+# (32,36,42) and the system nav bar is pure black. wm-size fractions lie
+# because the app window excludes the nav bar (proven: assumed KT=1056 but
+# measured 986; taps landed one row low and opened the dialer instead of
+# the menu).
+KT=""; KH=""
+for i in 1 2 3 4 5; do
+  "${ADB[@]}" exec-out screencap > /tmp/reborn_geo.raw 2>/dev/null || true
+  if GEO=$(python3 - /tmp/reborn_geo.raw <<'PY'
+import struct, sys
+d = open(sys.argv[1], 'rb').read()
+if len(d) < 12:
+    sys.exit(1)
+w, h, fmt = struct.unpack('<III', d[:12])
+px = d[12:]
+if len(px) != w * h * 4:
+    if len(d) == w * h * 4:
+        px = d
+    else:
+        sys.exit(1)
+def ch(x, y, c):
+    return px[(y * w + x) * 4 + c]
+x = w // 2
+run = 0
+KT = None
+for y in range(h // 4, h):
+    dark = (ch(x, y, 0) + ch(x, y, 1) + ch(x, y, 2)) < 240
+    if dark:
+        run += 1
+        if run >= 100:
+            KT = y - 99
+            break
+    else:
+        run = 0
+if KT is None:
+    sys.exit(1)
+y = h - 1
+nx = w // 16  # away from the nav-bar buttons (triangle/circle/square)
+while y > KT and ch(nx, y, 0) == 0 and ch(nx, y, 1) == 0 and ch(nx, y, 2) == 0:
+    y -= 1
+NT = y + 1
+if NT < KT + 200:
+    NT = h
+print(KT, NT - KT)
+PY
+); then
+    read -r KT KH <<< "$GEO"
+    [ -n "$KT" ] && [ -n "$KH" ] && break
+  fi
+  echo "DIAG: geometry detection failed (attempt $i); retrying"
+  sleep 3
+done
+[ -n "$KT" ] && [ -n "$KH" ] || { echo "DIAG: could not detect keypad geometry"; exit 1; }
+
 shot 01-idle-keypad
 
 tap_key CENTER; sleep 2; shot 02-menu
