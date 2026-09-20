@@ -15,6 +15,9 @@ mkdir -p "$SCREEN_DIR"
 # rebase time and the publish would fail. Copied in at the end.
 PROOF_LOG=/tmp/reborn-proof-log.txt
 exec > >(tee -a "$PROOF_LOG") 2>&1
+# Trace every command: this image keeps dying silently in different places;
+# xtrace turns each silent exit into a diagnosed one in the job log.
+set -x
 
 "${ADB[@]}" wait-for-device
 until [ "$("${ADB[@]}" shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do
@@ -28,8 +31,8 @@ sleep 5
 sleep 3
 "${ADB[@]}" wait-for-device
 for p in com.android.systemui com.android.settings; do
-  pid=$("${ADB[@]}" shell pidof "$p" | tr -d '\r')
-  [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" || true
+  pid=$("${ADB[@]}" shell pidof "$p" 2>/dev/null | tr -d '\r') || true
+  [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" 2>/dev/null || true
 done
 sleep 6
 
