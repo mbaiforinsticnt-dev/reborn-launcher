@@ -308,6 +308,7 @@ public class NokiaUi extends View {
             case COMPOSE_TEXT:
                 handler.removeCallbacks(commitTick);
                 composeTap.commit();
+                android.util.Log.i("Reborn", "send key on COMPOSE_TEXT, text=" + composeTap.text());
                 if (actions.sendSms(composeNumber.toString(), composeTap.text())) {
                     composeSent = true;
                     threads = actions.sms();
