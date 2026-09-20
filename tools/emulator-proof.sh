@@ -160,7 +160,7 @@ done
 sleep 5
 FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
 echo "DIAG foreground: $FG"
-echo "$FG" | grep -q "$PKG" || { echo "DIAG: launcher not foreground after am start - aborting"; exit 1; }
+case "$FG" in *"$PKG"*) ;; *) echo "DIAG: launcher not foreground after am start - aborting"; exit 1 ;; esac
 # Keypad geometry from a real frame: PNG screencap decoded in pure python
 # (zlib + unfiltering). Keypad bg is dark slate, nav bar is pure black, and
 # the softkey strip above the keypad is near-white. (uiautomator can't see
@@ -169,6 +169,8 @@ echo "$FG" | grep -q "$PKG" || { echo "DIAG: launcher not foreground after am st
 # proof screenshots.)
 KT=""; KH=""
 for i in $(seq 1 10); do
+  anr_sweep || true
+  sleep 2
   "${ADB[@]}" exec-out screencap -p > /tmp/reborn_geo.png 2>/dev/null || true
   if GEO=$(python3 - /tmp/reborn_geo.png <<'PY'
 import struct, sys, zlib
@@ -246,8 +248,14 @@ nx = w // 16
 while y > KT and lum(nx, y) < 8:
     y -= 1
 NT = y + 1
+if NT >= h - 2:
+    # no pure-black nav bar found: something (ANR dialog) covers the frame
+    sys.exit(1)
 if NT < KT + 200:
-    NT = h
+    sys.exit(1)
+# keypad bottom padding must still be dark slate (dialog would be light)
+if lum(x, NT - 10) > 80:
+    sys.exit(1)
 print(KT, NT - KT)
 PY
 ); then
@@ -289,11 +297,15 @@ tap_key CALL; sleep 3; shot 07-dial-bridge
 # not a reliable return (proven: later taps dialed 123 for real inside the
 # stock dialer). Re-foreground our launcher explicitly instead.
 fg_ours() {
-  "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
-  sleep 4
-  FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
-  echo "DIAG foreground: $FG"
-  echo "$FG" | grep -q "$PKG"
+  for try in 1 2 3; do
+    "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
+    sleep 4
+    FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
+    echo "DIAG foreground: $FG"
+    case "$FG" in *"$PKG"*) return 0 ;; esac
+    sleep 3
+  done
+  return 1
 }
 fg_ours || { echo "DIAG: launcher not foreground after dial bridge - aborting"; exit 1; }
 
