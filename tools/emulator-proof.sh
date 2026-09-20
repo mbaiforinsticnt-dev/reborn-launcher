@@ -9,6 +9,9 @@ ADB=(adb -s "$SERIAL")
 SCREEN_DIR="screenshots"
 PKG="dev.mbaiforinstinct.rebornlauncher"
 mkdir -p "$SCREEN_DIR"
+# Green-run logs are unreadable in the Actions UI, so mirror all output to a
+# file published alongside the screenshots.
+exec > >(tee -a "$SCREEN_DIR/proof-log.txt") 2>&1
 
 "${ADB[@]}" wait-for-device
 until [ "$("${ADB[@]}" shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do
@@ -117,6 +120,7 @@ emu_console() {
 }
 
 echo "screen ${W}x${H}"
+"${ADB[@]}" shell settings put system screen_off_timeout 1800000 >/dev/null 2>&1 || true
 
 # The API-30 image sometimes wedges system_server during early boot and the
 # package service vanishes ("Can't find service: package"); it can take a
@@ -309,8 +313,10 @@ fg_ours() {
     # the call sequence can leave the display off (proven: post-call shots
     # were pure black); wake and dismiss a possible keyguard first
     "${ADB[@]}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+    "${ADB[@]}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
     "${ADB[@]}" shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) >/dev/null 2>&1 || true
     sleep 1
+    echo "DIAG power: $("${ADB[@]}" shell "dumpsys power | grep -m1 mWakefulness" | tr -d '\r')"
     "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
     sleep 4
     FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
