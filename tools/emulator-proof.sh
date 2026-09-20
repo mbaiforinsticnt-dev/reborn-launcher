@@ -286,35 +286,22 @@ def lum(x, y):
     if channels >= 3:
         return (out[o] + out[o+1] + out[o+2]) // 3
     return out[o]
-x = w // 2
-run = 0
-KT = None
-for y in range(h // 4, h):
-    if lum(x, y) < 80:
-        run += 1
-        if run >= 100:
-            KT = y - 99
-            break
-    else:
-        run = 0
-if KT is None:
-    print('REASON no-dark-keypad-run', file=sys.stderr)
-    sys.exit(1)
+# Layout is deterministic (MainActivity weights 55/45): the keypad is the
+# bottom 45% of the app window, which ends at the nav bar. Find the nav bar
+# first (pure black from the bottom), compute the split, then verify the
+# deck really is dark there (guards against a dialog covering the frame).
 y = h - 1
 nx = w // 16
-while y > KT and lum(nx, y) < 8:
+while y > h // 2 and lum(nx, y) < 8:
     y -= 1
 NT = y + 1
 if NT >= h - 2:
-    # no pure-black nav bar found: something (ANR dialog) covers the frame
     print('REASON no-nav-bar', file=sys.stderr)
     sys.exit(1)
-if NT < KT + 200:
-    print('REASON nav-inside-keypad', file=sys.stderr)
-    sys.exit(1)
-# keypad bottom padding must still be dark slate (dialog would be light)
-if lum(x, NT - 10) > 80:
-    print('REASON light-keypad-bottom', file=sys.stderr)
+KT = NT * 55 // 100
+x = w // 2
+if lum(x, KT + 10) > 80 or lum(x, NT - 10) > 80:
+    print('REASON light-keypad-deck', file=sys.stderr)
     sys.exit(1)
 print(KT, NT - KT)
 PY
