@@ -161,57 +161,33 @@ sleep 5
 FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
 echo "DIAG foreground: $FG"
 echo "$FG" | grep -q "$PKG" || { echo "DIAG: launcher not foreground after am start - aborting"; exit 1; }
-# Keypad geometry from a real frame: the keypad background is dark slate
-# (32,36,42) and the system nav bar is pure black. wm-size fractions lie
-# because the app window excludes the nav bar (proven: assumed KT=1056 but
-# measured 986; taps landed one row low and opened the dialer instead of
-# the menu).
+# Keypad geometry from the UI itself: uiautomator dump exposes the
+# OnScreenKeypad view's absolute bounds. (The earlier wm-size fraction was
+# off by a full key row because the app window excludes the nav bar.)
 KT=""; KH=""
-for i in 1 2 3 4 5; do
-  "${ADB[@]}" exec-out screencap > /tmp/reborn_geo.raw 2>/dev/null || true
-  if GEO=$(python3 - /tmp/reborn_geo.raw <<'PY'
-import struct, sys
-d = open(sys.argv[1], 'rb').read()
-if len(d) < 12:
-    sys.exit(1)
-w, h, fmt = struct.unpack('<III', d[:12])
-px = d[12:]
-if len(px) != w * h * 4:
-    if len(d) == w * h * 4:
-        px = d
-    else:
-        sys.exit(1)
-def ch(x, y, c):
-    return px[(y * w + x) * 4 + c]
-x = w // 2
-run = 0
-KT = None
-for y in range(h // 4, h):
-    dark = (ch(x, y, 0) + ch(x, y, 1) + ch(x, y, 2)) < 240
-    if dark:
-        run += 1
-        if run >= 100:
-            KT = y - 99
-            break
-    else:
-        run = 0
-if KT is None:
-    sys.exit(1)
-y = h - 1
-nx = w // 16  # away from the nav-bar buttons (triangle/circle/square)
-while y > KT and ch(nx, y, 0) == 0 and ch(nx, y, 1) == 0 and ch(nx, y, 2) == 0:
-    y -= 1
-NT = y + 1
-if NT < KT + 200:
-    NT = h
-print(KT, NT - KT)
+for i in $(seq 1 8); do
+  "${ADB[@]}" shell uiautomator dump /sdcard/reborn_ui.xml >/dev/null 2>&1 || true
+  "${ADB[@]}" pull /sdcard/reborn_ui.xml /tmp/reborn_ui.xml >/dev/null 2>&1 || true
+  if [ -s /tmp/reborn_ui.xml ] && GEO=$(python3 - /tmp/reborn_ui.xml <<'PY'
+import re, sys
+xml = open(sys.argv[1], encoding='utf-8', errors='replace').read()
+for node in re.finditer(r'<node\b[^>]*>', xml):
+    tag = node.group(0)
+    cls = re.search(r'class="([^"]*)"', tag)
+    bnd = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', tag)
+    if cls and 'OnScreenKeypad' in cls.group(1) and bnd:
+        top = int(bnd.group(2))
+        bottom = int(bnd.group(4))
+        print(top, bottom - top)
+        sys.exit(0)
+sys.exit(1)
 PY
 ); then
     read -r KT KH <<< "$GEO"
     [ -n "$KT" ] && [ -n "$KH" ] && break
   fi
   echo "DIAG: geometry detection failed (attempt $i); retrying"
-  sleep 3
+  sleep 4
 done
 [ -n "$KT" ] && [ -n "$KH" ] || { echo "DIAG: could not detect keypad geometry"; exit 1; }
 echo "keypad top $KT height $KH"
