@@ -161,32 +161,94 @@ sleep 5
 FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
 echo "DIAG foreground: $FG"
 echo "$FG" | grep -q "$PKG" || { echo "DIAG: launcher not foreground after am start - aborting"; exit 1; }
-# Keypad geometry from the UI itself: uiautomator dump exposes the
-# OnScreenKeypad view's absolute bounds. (The earlier wm-size fraction was
-# off by a full key row because the app window excludes the nav bar.)
+# Keypad geometry from a real frame: PNG screencap decoded in pure python
+# (zlib + unfiltering). Keypad bg is dark slate, nav bar is pure black, and
+# the softkey strip above the keypad is near-white. (uiautomator can't see
+# the keypad: the custom views are accessibility-pruned; raw screencap
+# format proved unreliable. This detector is verified offline against real
+# proof screenshots.)
 KT=""; KH=""
-for i in $(seq 1 12); do
-  rm -f /tmp/reborn_ui.xml
-  DUMP_OUT=$("${ADB[@]}" shell uiautomator dump /sdcard/reborn_ui.xml 2>&1 | tr -d '\r')
-  "${ADB[@]}" pull /sdcard/reborn_ui.xml /tmp/reborn_ui.xml >/dev/null 2>&1 || true
-  if [ -s /tmp/reborn_ui.xml ]; then
-    echo "DIAG dump: size=$(stat -c%s /tmp/reborn_ui.xml) keypad=$(grep -c OnScreenKeypad /tmp/reborn_ui.xml || true) ourpkg=$(grep -c rebornlauncher /tmp/reborn_ui.xml || true)"
-  else
-    echo "DIAG dump: missing/empty; dump said: $DUMP_OUT"
-  fi
-  if [ -s /tmp/reborn_ui.xml ] && GEO=$(python3 - /tmp/reborn_ui.xml <<'PY'
-import re, sys
-xml = open(sys.argv[1], encoding='utf-8', errors='replace').read()
-for node in re.finditer(r'<node\b[^>]*>', xml):
-    tag = node.group(0)
-    cls = re.search(r'class="([^"]*)"', tag)
-    bnd = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', tag)
-    if cls and 'OnScreenKeypad' in cls.group(1) and bnd:
-        top = int(bnd.group(2))
-        bottom = int(bnd.group(4))
-        print(top, bottom - top)
-        sys.exit(0)
-sys.exit(1)
+for i in $(seq 1 10); do
+  "${ADB[@]}" exec-out screencap -p > /tmp/reborn_geo.png 2>/dev/null || true
+  if GEO=$(python3 - /tmp/reborn_geo.png <<'PY'
+import struct, sys, zlib
+d = open(sys.argv[1], 'rb').read()
+if d[:8] != bytes.fromhex('89504e470d0a1a0a'):
+    sys.exit(1)
+pos = 8
+idat = b''
+w = h = None
+ctype = None
+while pos < len(d):
+    ln, typ = struct.unpack('>I4s', d[pos:pos+8])
+    chunk = d[pos+8:pos+8+ln]
+    if typ == b'IHDR':
+        w, h, depth, ctype = struct.unpack('>IIBB', chunk[:10])
+    elif typ == b'IDAT':
+        idat += chunk
+    elif typ == b'IEND':
+        break
+    pos += 12 + ln
+if w is None or not idat:
+    sys.exit(1)
+raw = zlib.decompress(idat)
+channels = {0:1, 2:3, 3:1, 4:2, 6:4}.get(ctype)
+if channels is None or depth != 8:
+    sys.exit(1)
+stride = w * channels
+out = bytearray(h * stride)
+prev = bytearray(stride)
+p = 0
+for y in range(h):
+    f = raw[p]; p += 1
+    line = bytearray(raw[p:p+stride]); p += stride
+    if f == 1:
+        for i in range(channels, stride):
+            line[i] = (line[i] + line[i-channels]) & 255
+    elif f == 2:
+        for i in range(stride):
+            line[i] = (line[i] + prev[i]) & 255
+    elif f == 3:
+        for i in range(stride):
+            a = line[i-channels] if i >= channels else 0
+            line[i] = (line[i] + ((a + prev[i]) >> 1)) & 255
+    elif f == 4:
+        for i in range(stride):
+            a = line[i-channels] if i >= channels else 0
+            b = prev[i]
+            c = prev[i-channels] if i >= channels else 0
+            pp = a + b - c
+            pa, pb, pc = abs(pp-a), abs(pp-b), abs(pp-c)
+            pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
+            line[i] = (line[i] + pr) & 255
+    out[y*stride:(y+1)*stride] = line
+    prev = line
+def lum(x, y):
+    o = y * stride + x * channels
+    if channels >= 3:
+        return (out[o] + out[o+1] + out[o+2]) // 3
+    return out[o]
+x = w // 2
+run = 0
+KT = None
+for y in range(h // 4, h):
+    if lum(x, y) < 80:
+        run += 1
+        if run >= 100:
+            KT = y - 99
+            break
+    else:
+        run = 0
+if KT is None:
+    sys.exit(1)
+y = h - 1
+nx = w // 16
+while y > KT and lum(nx, y) < 8:
+    y -= 1
+NT = y + 1
+if NT < KT + 200:
+    NT = h
+print(KT, NT - KT)
 PY
 ); then
     read -r KT KH <<< "$GEO"
