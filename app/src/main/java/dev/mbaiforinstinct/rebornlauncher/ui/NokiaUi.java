@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, LIST, THREADS, READ, COMPOSE_NUMBER, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACTS_HOME, CALLLOG_HOME, OPTIONS
+        IDLE, MENU, LIST, THREADS, READ, COMPOSE_NUMBER, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS
     }
 
     public interface Actions {
@@ -144,6 +144,9 @@ public class NokiaUi extends View {
     private int optionsSel = 0;
     private Screen optionsFrom = Screen.IDLE;
     private int listSection = 0;
+    private String callLogTitle = "All calls";
+    private String cardName = "";
+    private String cardNumber = "";
     private Screen listReturn = Screen.MENU;
     private final java.util.ArrayDeque<Integer> listBack = new java.util.ArrayDeque<>();
 
@@ -193,6 +196,7 @@ public class NokiaUi extends View {
             case DIALER: drawDialer(c, w, h); break;
             case CALLLOG:
             case CONTACTS: drawRows(c, w, h); break;
+            case CONTACT_CARD: drawContactCard(c, w, h); break;
             case CONTACTS_HOME: drawIconMenu(c, w, h, "Contacts", CONTACTS_MENU, contactsIcons); break;
             case CALLLOG_HOME: drawIconMenu(c, w, h, "Log", CALLLOG_MENU, calllogIcons); break;
             case OPTIONS: drawOptions(c, w, h); break;
@@ -319,7 +323,21 @@ public class NokiaUi extends View {
                 break;
             case CONTACTS:
                 if (!rows.isEmpty()) {
-                    actions.dial(rows.get(row)[1]);
+                    cardName = rows.get(row)[0];
+                    cardNumber = rows.get(row)[1];
+                    screen = Screen.CONTACT_CARD;
+                    row = 0;
+                }
+                break;
+            case CONTACT_CARD:
+                if (row == 1) { // Send message
+                    composeNumber.setLength(0);
+                    composeNumber.append(cardNumber);
+                    composeTap.clear();
+                    composeSent = false;
+                    screen = Screen.COMPOSE_NUMBER;
+                } else if (row == 2) { // Call
+                    actions.dial(cardNumber);
                     screen = Screen.IDLE;
                     row = 0;
                 }
@@ -361,9 +379,13 @@ public class NokiaUi extends View {
             case THREADS: case COMPOSE_NUMBER: screen = Screen.LIST; row = 0; break;
             case READ: screen = Screen.THREADS; break;
             case COMPOSE_TEXT: screen = Screen.COMPOSE_NUMBER; break;
-            case DIALER: screen = Screen.IDLE; dialNumber.setLength(0); break;
+            case DIALER:
+                if (dialNumber.length() > 0) dialNumber.setLength(0); // sim: right key is Clear first
+                else screen = Screen.IDLE;
+                break;
             case CALLLOG: screen = Screen.CALLLOG_HOME; row = 0; break;
-            case CONTACTS: screen = Screen.CONTACTS_HOME; row = 0; break;
+            case CONTACTS: screen = Screen.IDLE; row = 0; break; // sim names right key is Exit
+            case CONTACT_CARD: screen = Screen.CONTACTS; row = 0; break;
             case CONTACTS_HOME: case CALLLOG_HOME: screen = Screen.MENU; row = 0; break;
             default: break;
         }
@@ -394,6 +416,7 @@ public class NokiaUi extends View {
             case LIST: return LIST_ITEMS[listSection].length;
             case THREADS: return threads.size();
             case CALLLOG: case CONTACTS: return rows.size();
+            case CONTACT_CARD: return 4;
             case CONTACTS_HOME: return CONTACTS_MENU.length;
             case CALLLOG_HOME: return CALLLOG_MENU.length;
             default: return 0;
@@ -433,6 +456,7 @@ public class NokiaUi extends View {
                 break;
             case CALLLOG_HOME:
                 if (row <= 4) {
+                    callLogTitle = CALLLOG_MENU[row];
                     rows = actions.callLog();
                     if (row == 1) rows = filterCallRows(rows, "Missed");
                     else if (row == 2) rows = filterCallRows(rows, "Incoming");
@@ -956,8 +980,14 @@ public class NokiaUi extends View {
         p.setTypeface(Typeface.DEFAULT);
     }
 
+    private void drawContactCard(Canvas c, int w, int h) {
+        drawTitle(c, w, h, cardName);
+        String[] cardRows = {"Mobile  " + cardNumber, "Send message", "Call", "Edit contact"};
+        drawItemRows(c, w, h, cardRows.length, i -> cardRows[i], null, i -> listIconFor(i));
+    }
+
     private void drawRows(Canvas c, int w, int h) {
-        String title = screen == Screen.CALLLOG ? "Call log" : "Contacts";
+        String title = screen == Screen.CALLLOG ? callLogTitle : "Names";
         if (screen == Screen.CALLLOG && !rows.isEmpty() && rows.get(0).length > 1 && rows.get(0)[0].equals("Not available")) {
             title = "Radio";
         }
@@ -1185,10 +1215,12 @@ public class NokiaUi extends View {
                 else if (from == Screen.CALLLOG && !rows.isEmpty()) actions.dial(rows.get(row)[3]);
                 else if (from == Screen.CONTACTS && !rows.isEmpty()) actions.dial(rows.get(row)[1]);
                 else if (from == Screen.DIALER && dialNumber.length() > 0) { actions.dial(dialNumber.toString()); dialNumber.setLength(0); screen = Screen.IDLE; }
+                else if (from == Screen.CONTACT_CARD) { actions.dial(cardNumber); screen = Screen.IDLE; row = 0; }
                 break;
             case "Send message": case "Send message >":
                 if (from == Screen.CONTACTS && !rows.isEmpty()) { composeNumber.setLength(0); composeNumber.append(rows.get(row)[1]); composeTap.clear(); screen = Screen.COMPOSE_NUMBER; }
                 else if (from == Screen.CALLLOG && !rows.isEmpty()) { composeNumber.setLength(0); composeNumber.append(rows.get(row)[3]); composeTap.clear(); screen = Screen.COMPOSE_NUMBER; }
+                else if (from == Screen.CONTACT_CARD) { composeNumber.setLength(0); composeNumber.append(cardNumber); composeTap.clear(); screen = Screen.COMPOSE_NUMBER; }
                 break;
             case "New message": case "New message >":
                 composeNumber.setLength(0);
@@ -1304,6 +1336,7 @@ public class NokiaUi extends View {
             case CALLLOG: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
             case DIALER: return new String[]{"Call", "Save", "Send message", "Add to contact"};
             case MENU: return new String[]{"Main menu view", "Organise", "Help"};
+            case CONTACT_CARD: return new String[]{"Add detail >", "Call", "Edit", "Delete", "Send message >", "View conversations", "Add image >", "Use number", "Set as default", "Change type >", "Copy number", "Send business card >", "Add to group", "Speed dial"};
             case CONTACTS_HOME: return new String[]{"Open", "Search", "Add new", "Memory status"};
             case CALLLOG_HOME: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
             case LIST:
@@ -1333,16 +1366,25 @@ public class NokiaUi extends View {
 
     private String[] softLabels() {
         switch (screen) {
-            case IDLE: return new String[]{"Menu", "Menu", "Names"};
+            case IDLE: return new String[]{"Go to", "Menu", "Names"};
             case OPTIONS: return new String[]{"", "Select", "Back"};
-            case MENU: case LIST: return new String[]{screen == Screen.MENU || optionsItemsFor(Screen.LIST).length > 0 ? "Options" : "", "Select", "Back"};
+            case MENU: return new String[]{"Options", "Select", "Exit"};
+            case LIST: {
+                String centre = "Select";
+                if (listSection == 11) centre = "Edit"; // Drafts
+                else if (listSection >= 12 && listSection <= 16) centre = "Open"; // Outbox/Sent/Saved/Templates/Saved messages
+                return new String[]{optionsItemsFor(Screen.LIST).length > 0 ? "Options" : "", centre, "Back"};
+            }
             case THREADS: return new String[]{"Options", "Open", "Back"};
             case READ: return new String[]{"Options", "Reply", "Back"};
             case COMPOSE_NUMBER: return new String[]{"", "Next", "Back"};
             case COMPOSE_TEXT: return new String[]{"", "Send", "Back"};
-            case DIALER: case CALLLOG: case CONTACTS: return new String[]{"Options", "Call", "Back"};
+            case DIALER: return new String[]{"Options", "Save", dialNumber.length() > 0 ? "Clear" : "Back"};
+            case CALLLOG: return new String[]{"Options", "Call", "Back"};
+            case CONTACTS: return new String[]{"Options", "Details", "Exit"};
+            case CONTACT_CARD: return new String[]{"Options", "Call", "Back"};
             case CONTACTS_HOME: case CALLLOG_HOME: return new String[]{"Options", "Select", "Back"};
             default: return new String[]{"", "", "Back"};
         }
     }
-                        }
+            }
