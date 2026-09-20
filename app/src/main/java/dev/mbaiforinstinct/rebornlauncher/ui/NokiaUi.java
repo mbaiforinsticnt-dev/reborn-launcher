@@ -798,7 +798,6 @@ public class NokiaUi extends View {
         float rowH = listHeight / 5f;
         int first = Math.max(0, Math.min(row - 2, count - visible));
         float padX = w * 0.035f;
-        float dateColW = w * 0.20f;
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         for (int i = 0; i < visible; i++) {
             int idx = first + i;
@@ -820,7 +819,9 @@ public class NokiaUi extends View {
             float nameY = top + rowH * 0.46f;
             c.drawText(ellipsize(name, w - 2 * padX, p), padX, nameY, p);
             p.setFakeBoldText(false);
-            // Preview + date line, smaller; date right-aligned, preview ellipsized short of it.
+            // Preview + date line: the date column is carved out by MEASURING the
+            // actual date text (device-font-proof), then the preview is ellipsized
+            // AND hard-clipped to the boundary so it can never bleed under the date.
             if (sub != null) {
                 String s = sub.get(idx);
                 if (s != null && !s.isEmpty()) {
@@ -832,14 +833,23 @@ public class NokiaUi extends View {
                     }
                     p.setTextSize(w * 0.058f);
                     float subY = top + rowH * 0.82f;
+                    float previewRight = w - padX;
                     if (!date.isEmpty()) {
+                        float dateW = p.measureText(date);
+                        float dateLeft = w - padX - dateW;
+                        // gap between preview and date
+                        previewRight = dateLeft - w * 0.02f;
                         p.setColor(subCol);
                         p.setTextAlign(Paint.Align.RIGHT);
                         c.drawText(date, w - padX, subY, p);
                         p.setTextAlign(Paint.Align.LEFT);
                     }
                     p.setColor(subCol);
-                    c.drawText(ellipsize(preview, w - 2 * padX - dateColW, p), padX, subY, p);
+                    String fit = ellipsize(preview, previewRight - padX, p);
+                    c.save();
+                    c.clipRect(padX, top, previewRight, top + rowH);
+                    c.drawText(fit, padX, subY, p);
+                    c.restore();
                 }
             }
         }
@@ -1072,4 +1082,4 @@ public class NokiaUi extends View {
             default: return new String[]{"", "", "Back"};
         }
     }
-        }
+}
