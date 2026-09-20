@@ -144,7 +144,7 @@ echo "screen ${W}x${H}"
 # minute to come back. Gate on it instead of blind sleeps.
 wait_pkg_service() {
   for i in $(seq 1 30); do
-    if "${ADB[@]}" shell service check package 2>/dev/null | tr -d '\r' | grep -q "found"; then
+    if "${ADB[@]}" shell service check package 2>/dev/null | tr -d '\r' | grep -q ": found"; then
       return 0
     fi
     sleep 5
@@ -160,7 +160,7 @@ wait_pkg_service() {
   "${ADB[@]}" wait-for-device
   for i in $(seq 1 40); do
     BC=$("${ADB[@]}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-    if [ "$BC" = "1" ] && "${ADB[@]}" shell service check package 2>/dev/null | tr -d '\r' | grep -q "found"; then
+    if [ "$BC" = "1" ] && "${ADB[@]}" shell service check package 2>/dev/null | tr -d '\r' | grep -q ": found"; then
       echo "DIAG: runtime restart recovered package service"
       return 0
     fi
