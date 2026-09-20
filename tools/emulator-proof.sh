@@ -73,7 +73,6 @@ anr_watchdog() {
 anr_watchdog &
 WATCHDOG=$!
 trap 'kill $WATCHDOG 2>/dev/null || true' EXIT
-KH=$(( H - KT ))
 
 tapf() {
   awk -v x="$1" -v y="$2" -v w="$W" -v kt="$KT" -v kh="$KH" \
