@@ -159,17 +159,30 @@ for attempt in 1 2 3 4 5 6; do
 done
 rm -f "$NOSWEEP"
 [ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install failed after 6 attempts"; exit 1; }
-"${ADB[@]}" shell pm list packages | tr -d '\r' | grep "$PKG" || {
-  echo "DIAG: $PKG not in pm list packages after install:"
-  "${ADB[@]}" shell pm list packages | head -30
-  exit 1
-}
+# Install reported Success; system_server can still be mid-restart here
+# ("Can't find service: package" right after install), so verify with
+# retries instead of dying on the first attempt.
+VERIFY_OK=0
+for attempt in $(seq 1 12); do
+  if "${ADB[@]}" shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "$PKG"; then
+    VERIFY_OK=1; break
+  fi
+  echo "DIAG: pm verification attempt $attempt failed; waiting for package service"
+  wait_pkg_service || true
+  sleep 5
+done
+[ "$VERIFY_OK" = 1 ] || { echo "DIAG: $PKG not verifiable after install retries"; exit 1; }
 echo "DIAG: installed: $("${ADB[@]}" shell dumpsys package "$PKG" | tr -d '\r' | grep -m1 versionName)"
 "${ADB[@]}" shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER | tr -d '\r' | tail -3
 
 # Permissions must exist before the launcher queries providers.
 for perm in CALL_PHONE READ_CONTACTS READ_CALL_LOG READ_SMS SEND_SMS; do
-  "${ADB[@]}" shell pm grant "$PKG" "android.permission.$perm"
+  for g in 1 2 3; do
+    "${ADB[@]}" shell pm grant "$PKG" "android.permission.$perm" 2>/dev/null && break
+    echo "DIAG: pm grant $perm attempt $g failed; waiting for package service"
+    wait_pkg_service || true
+    sleep 4
+  done
 done
 
 # am start can itself hit a mid-restart system_server (proven: NPE in
