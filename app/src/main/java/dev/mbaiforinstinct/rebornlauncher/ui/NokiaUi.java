@@ -500,13 +500,13 @@ public class NokiaUi extends View {
 
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         p.setColor(COL_HOME_TEXT);
-        // Clock top-right (24px at 240 width).
-        p.setTextSize(w * 0.10f);
+        // Clock top-right, large like the readable build (not the dense reskin).
+        p.setTextSize(w * 0.17f);
         p.setTextAlign(Paint.Align.RIGHT);
-        c.drawText(timeLabel(), w * 0.9625f, top + (bot - top) * 0.039f + w * 0.085f, p);
-        // Carrier top-left, date below (12px at 240 width).
+        c.drawText(timeLabel(), w * 0.9625f, top + (bot - top) * 0.10f + w * 0.13f, p);
+        // Carrier top-left, date below.
         p.setTextAlign(Paint.Align.LEFT);
-        p.setTextSize(w * 0.05f);
+        p.setTextSize(w * 0.066f);
         String carrier = carrierName();
         float ty = top + (bot - top) * 0.039f + w * 0.045f;
         if (!carrier.isEmpty()) {
@@ -536,7 +536,7 @@ public class NokiaUi extends View {
             p.setStyle(Paint.Style.FILL);
             p.setColor(COL_READ_FG);
             p.setTextAlign(Paint.Align.CENTER);
-            p.setTextSize(w * 0.058f);
+            p.setTextSize(w * 0.066f);
             float ly = by + w * 0.085f;
             for (String line : lines) {
                 c.drawText(line, w * 0.5f, ly, p);
@@ -575,7 +575,7 @@ public class NokiaUi extends View {
                 c.drawRect(cx - cellW * 0.46f, cy - cellH * 0.30f, cx + cellW * 0.46f, cy + cellH * 0.30f, p);
             }
             p.setColor(i == selected ? Color.BLACK : Color.WHITE);
-            p.setTextSize(w * 0.079f);
+            p.setTextSize(w * 0.089f);
             p.setTextAlign(Paint.Align.CENTER);
             c.drawText(MENU_ITEMS[i], cx, cy + w * 0.028f, p);
         }
@@ -616,7 +616,7 @@ public class NokiaUi extends View {
         float y = top + screenH(h) * 0.055f;
         p.setTextAlign(Paint.Align.LEFT);
         p.setColor(COL_SUB);
-        p.setTextSize(w * 0.058f);
+        p.setTextSize(w * 0.066f);
         c.drawText(m.directionLabel() + "  " + m.dateLabel(), w * 0.033f, y, p);
         // v4.89 read box: light panel with dark text.
         float boxTop = y + screenH(h) * 0.03f;
@@ -625,7 +625,7 @@ public class NokiaUi extends View {
         p.setColor(COL_READ_BG);
         c.drawRect(w * 0.033f, boxTop, w * 0.967f, boxBot, p);
         p.setColor(COL_READ_FG);
-        p.setTextSize(w * 0.071f);
+        p.setTextSize(w * 0.080f);
         android.graphics.Rect clip = new android.graphics.Rect(
                 (int) (w * 0.033f), (int) boxTop, (int) (w * 0.967f), (int) boxBot);
         c.save();
@@ -642,14 +642,14 @@ public class NokiaUi extends View {
         p.setTextAlign(Paint.Align.LEFT);
         float y = top + screenH(h) * 0.08f;
         p.setColor(COL_SUB);
-        p.setTextSize(w * 0.058f);
+        p.setTextSize(w * 0.066f);
         c.drawText("To:", w * 0.042f, y, p);
         // Light text field like the v4.89 editor.
         drawField(c, w, y + screenH(h) * 0.02f, composeNumber.toString(), screenH(h) * 0.10f);
         y += screenH(h) * 0.16f;
         if (screen == Screen.COMPOSE_TEXT) {
             p.setColor(COL_SUB);
-            p.setTextSize(w * 0.058f);
+            p.setTextSize(w * 0.066f);
             c.drawText("Message:", w * 0.042f, y, p);
             float fTop = y + screenH(h) * 0.02f;
             float fH = screenH(h) * 0.38f;
@@ -657,7 +657,7 @@ public class NokiaUi extends View {
             p.setColor(COL_READ_BG);
             c.drawRect(w * 0.042f, fTop, w * 0.958f, fTop + fH, p);
             p.setColor(COL_READ_FG);
-            p.setTextSize(w * 0.071f);
+            p.setTextSize(w * 0.080f);
             android.graphics.Rect clip = new android.graphics.Rect(
                     (int) (w * 0.042f), (int) fTop, (int) (w * 0.958f), (int) (fTop + fH));
             c.save();
@@ -667,13 +667,13 @@ public class NokiaUi extends View {
             if (composeSent) {
                 p.setColor(COL_ACCENT);
                 p.setTextAlign(Paint.Align.CENTER);
-                p.setTextSize(w * 0.071f);
+                p.setTextSize(w * 0.080f);
                 c.drawText("Message sent", w * 0.5f, fTop + fH + screenH(h) * 0.10f, p);
                 p.setTextAlign(Paint.Align.LEFT);
             }
         } else {
             p.setColor(COL_SUB);
-            p.setTextSize(w * 0.058f);
+            p.setTextSize(w * 0.066f);
             c.drawText("Type the number, then Centre", w * 0.042f, y, p);
         }
         p.setTypeface(Typeface.DEFAULT);
@@ -684,7 +684,7 @@ public class NokiaUi extends View {
         p.setColor(COL_READ_BG);
         c.drawRect(w * 0.042f, top, w * 0.958f, top + height, p);
         p.setColor(COL_READ_FG);
-        p.setTextSize(w * 0.079f);
+        p.setTextSize(w * 0.089f);
         c.drawText(text, w * 0.075f, top + height * 0.68f, p);
     }
 
@@ -693,10 +693,10 @@ public class NokiaUi extends View {
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         p.setTextAlign(Paint.Align.CENTER);
         p.setColor(Color.WHITE);
-        p.setTextSize(w * 0.11f);
+        p.setTextSize(w * 0.125f);
         c.drawText(dialNumber.toString(), w * 0.5f, statusH(h) + screenH(h) * 0.45f, p);
         p.setColor(COL_SUB);
-        p.setTextSize(w * 0.058f);
+        p.setTextSize(w * 0.066f);
         c.drawText("Green key to call", w * 0.5f, statusH(h) + screenH(h) * 0.58f, p);
         p.setTextAlign(Paint.Align.LEFT);
         p.setTypeface(Typeface.DEFAULT);
@@ -737,12 +737,12 @@ public class NokiaUi extends View {
             }
             p.setTextAlign(Paint.Align.LEFT);
             p.setColor(idx == row ? Color.BLACK : Color.WHITE);
-            p.setTextSize(w * 0.079f);
+            p.setTextSize(w * 0.089f);
             c.drawText(main.get(idx), w * 0.042f, top + rowH * 0.44f, p);
             if (sub != null) {
                 String s = sub.get(idx);
                 if (s != null && !s.isEmpty()) {
-                    p.setTextSize(w * 0.058f);
+                    p.setTextSize(w * 0.066f);
                     p.setColor(idx == row ? Color.parseColor("#444444") : COL_SUB);
                     c.drawText(s, w * 0.042f, top + rowH * 0.80f, p);
                 }
@@ -765,7 +765,7 @@ public class NokiaUi extends View {
     private void drawEmpty(Canvas c, int w, int h, String text) {
         p.setTextAlign(Paint.Align.CENTER);
         p.setColor(COL_SUB);
-        p.setTextSize(w * 0.071f);
+        p.setTextSize(w * 0.080f);
         c.drawText(text, w * 0.5f, statusH(h) + screenH(h) * 0.5f, p);
         p.setTextAlign(Paint.Align.LEFT);
     }
@@ -795,7 +795,7 @@ public class NokiaUi extends View {
         p.setColor(COL_TITLE_BG);
         c.drawRect(0, top, w, top + th, p);
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
-        p.setTextSize(w * 0.079f);
+        p.setTextSize(w * 0.089f);
         p.setColor(Color.WHITE);
         p.setTextAlign(Paint.Align.LEFT);
         c.drawText(title, w * 0.02f, top + th * 0.72f, p);
