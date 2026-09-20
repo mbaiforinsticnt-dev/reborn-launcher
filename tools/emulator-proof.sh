@@ -316,7 +316,17 @@ fg_ours() {
     "${ADB[@]}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
     "${ADB[@]}" shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) >/dev/null 2>&1 || true
     sleep 1
-    echo "DIAG power: $("${ADB[@]}" shell "dumpsys power | grep -m1 mWakefulness" | tr -d '\r')"
+    WAKE=$("${ADB[@]}" shell "dumpsys power | grep -m1 mWakefulness" | tr -d '\r')
+    echo "DIAG power: $WAKE"
+    if ! echo "$WAKE" | grep -q "Awake"; then
+      echo "still asleep - toggling POWER"
+      "${ADB[@]}" shell input keyevent KEYCODE_POWER >/dev/null 2>&1 || true
+      sleep 1
+      "${ADB[@]}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
+      "${ADB[@]}" shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) >/dev/null 2>&1 || true
+      sleep 1
+      echo "DIAG power after toggle: $("${ADB[@]}" shell "dumpsys power | grep -m1 mWakefulness" | tr -d '\r')"
+    fi
     "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
     sleep 4
     FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
