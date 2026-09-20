@@ -171,32 +171,25 @@ wait_pkg_service() {
 
 # Keep the watchdog from touching anything while the package manager works.
 touch "$NOSWEEP"
+# Install + verify in ONE loop: adb install can report Success and the
+# package still vanish if system_server restarts right after (packages.xml
+# lost with the dying process). Only pm path proving the package is
+# registered counts as success; otherwise reinstall.
 INSTALL_OK=0
-for attempt in 1 2 3 4 5 6; do
+for attempt in 1 2 3 4 5 6 7 8; do
   "${ADB[@]}" wait-for-device
   wait_pkg_service || { echo "DIAG: package service never came up"; exit 1; }
-  if "${ADB[@]}" install -r app/build/outputs/apk/debug/app-debug.apk; then
+  "${ADB[@]}" install -r app/build/outputs/apk/debug/app-debug.apk || true
+  sleep 4
+  if "${ADB[@]}" shell pm path "$PKG" 2>/dev/null | tr -d '\r' | grep -q "package:"; then
     INSTALL_OK=1
     break
   fi
-  echo "DIAG: install attempt $attempt failed; waiting for package service and retrying"
-  sleep 10
+  echo "DIAG: install attempt $attempt did not stick (service: $("${ADB[@]}" shell service check package 2>/dev/null | tr -d '\r')); reinstalling"
+  sleep 8
 done
 rm -f "$NOSWEEP"
-[ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install failed after 6 attempts"; exit 1; }
-# Install reported Success; system_server can still be mid-restart here
-# ("Can't find service: package" right after install), so verify with
-# retries instead of dying on the first attempt.
-VERIFY_OK=0
-for attempt in $(seq 1 12); do
-  if "${ADB[@]}" shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "$PKG"; then
-    VERIFY_OK=1; break
-  fi
-  echo "DIAG: pm verification attempt $attempt failed; waiting for package service"
-  wait_pkg_service || true
-  sleep 5
-done
-[ "$VERIFY_OK" = 1 ] || { echo "DIAG: $PKG not verifiable after install retries"; exit 1; }
+[ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install never stuck after 8 attempts"; exit 1; }
 echo "DIAG: installed: $("${ADB[@]}" shell dumpsys package "$PKG" | tr -d '\r' | grep -m1 versionName)"
 "${ADB[@]}" shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER | tr -d '\r' | tail -3
 
