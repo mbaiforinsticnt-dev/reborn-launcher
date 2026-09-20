@@ -1043,15 +1043,24 @@ public class NokiaUi extends View {
         c.drawRect(0, top, w, h, p);
         String[] labels = softLabels();
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
-        p.setTextSize((h - top) * 0.48f);
+        // Sim v4.89: soft font is 18px at the 240px LCD = w*0.075 (not the taller fit I had).
+        p.setTextSize(w * 0.075f);
         p.setColor(Color.WHITE);
         float baseline = top + (h - top) * 0.66f;
+        // Measure each label so L/C/R can never collide: left and right capped at a
+        // third of the width, center ellipsized between them, exactly like the S40 bar.
+        float third = w * 0.31f;
+        String l = ellipsize(labels[0], third, p);
+        String r = ellipsize(labels[2], third, p);
+        float lRight = w * 0.02f + p.measureText(l);
+        float rLeft = w * 0.98f - p.measureText(r);
+        String ctr = ellipsize(labels[1], Math.max(0, rLeft - lRight - w * 0.02f), p);
         p.setTextAlign(Paint.Align.LEFT);
-        c.drawText(labels[0], w * 0.02f, baseline, p);
+        c.drawText(l, w * 0.02f, baseline, p);
         p.setTextAlign(Paint.Align.CENTER);
-        c.drawText(labels[1], w * 0.5f, baseline, p);
+        c.drawText(ctr, w * 0.5f, baseline, p);
         p.setTextAlign(Paint.Align.RIGHT);
-        c.drawText(labels[2], w * 0.98f, baseline, p);
+        c.drawText(r, w * 0.98f, baseline, p);
         p.setTextAlign(Paint.Align.LEFT);
         p.setTypeface(Typeface.DEFAULT);
     }
