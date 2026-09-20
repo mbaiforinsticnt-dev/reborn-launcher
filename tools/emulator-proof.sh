@@ -346,6 +346,9 @@ emu_console 'gsm call +15557654321'
 sleep 6
 shot 08-incoming-call
 emu_console 'gsm cancel +15557654321'
+# the stock dialer holds the screen off via the proximity wake lock even after
+# the call ends; report "far" so wakeup/POWER can relight the display
+emu_console 'sensor set proximity 10' || true
 sleep 2
 rm -f "$NOSWEEP"
 sleep 2
