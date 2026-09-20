@@ -51,6 +51,13 @@ public final class Multitap {
         return committed.toString();
     }
 
+    public void set(String value) {
+        committed.setLength(0);
+        if (value != null) committed.append(value);
+        lastDigit = -1;
+        cycle = 0;
+    }
+
     public void clear() {
         committed.setLength(0);
         lastDigit = -1;
