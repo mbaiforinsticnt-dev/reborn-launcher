@@ -655,7 +655,6 @@ public class NokiaUi extends View {
                 i -> {
                     PhoneStore.Sms m = threads.get(i);
                     String body = m.body == null ? "" : m.body.replace('\n', ' ');
-                    if (body.length() > 28) body = body.substring(0, 28) + "...";
                     return body + "  " + m.dateLabel();
                 });
     }
@@ -773,31 +772,57 @@ public class NokiaUi extends View {
     private interface LabelAt { String get(int i); }
 
     private void drawItemRows(Canvas c, int w, int h, int count, LabelAt main, LabelAt sub) {
+        // Clean list geometry (the readable standard): 5 rows, bold name line,
+        // smaller preview+date line, measured so nothing overlaps or clips.
         float listTop = statusH(h) + titleH(h);
-        float listHeight = softTop(h) - listTop;
-        int visible = Math.min(count, 6);
-        float rowH = listHeight / 6f;
+        float listBot = softTop(h);
+        float listHeight = listBot - listTop;
+        int visible = Math.min(count, 5);
+        float rowH = listHeight / 5f;
         int first = Math.max(0, Math.min(row - 2, count - visible));
+        float padX = w * 0.035f;
+        float dateColW = w * 0.20f;
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         for (int i = 0; i < visible; i++) {
             int idx = first + i;
             float top = listTop + i * rowH;
-            if (idx == row) {
-                // v4.89 selection: full inversion, white row with black text.
+            boolean sel = idx == row;
+            if (sel) {
                 p.setStyle(Paint.Style.FILL);
                 p.setColor(Color.WHITE);
                 c.drawRect(0, top, w, top + rowH, p);
             }
+            int mainCol = sel ? Color.BLACK : Color.WHITE;
+            int subCol = sel ? Color.parseColor("#333333") : COL_SUB;
+            // Name line, bold, ellipsized to the measured width.
             p.setTextAlign(Paint.Align.LEFT);
-            p.setColor(idx == row ? Color.BLACK : Color.WHITE);
-            p.setTextSize(w * 0.083f);
-            c.drawText(main.get(idx), w * 0.042f, top + rowH * 0.44f, p);
+            p.setFakeBoldText(true);
+            p.setTextSize(w * 0.078f);
+            p.setColor(mainCol);
+            String name = main.get(idx);
+            float nameY = top + rowH * 0.46f;
+            c.drawText(ellipsize(name, w - 2 * padX, p), padX, nameY, p);
+            p.setFakeBoldText(false);
+            // Preview + date line, smaller; date right-aligned, preview ellipsized short of it.
             if (sub != null) {
                 String s = sub.get(idx);
                 if (s != null && !s.isEmpty()) {
-                    p.setTextSize(w * 0.071f);
-                    p.setColor(idx == row ? Color.parseColor("#444444") : COL_SUB);
-                    c.drawText(s, w * 0.042f, top + rowH * 0.80f, p);
+                    String preview = s, date = "";
+                    int sep = s.lastIndexOf("  ");
+                    if (sep > 0 && sep < s.length() - 2) {
+                        preview = s.substring(0, sep);
+                        date = s.substring(sep).trim();
+                    }
+                    p.setTextSize(w * 0.058f);
+                    float subY = top + rowH * 0.82f;
+                    if (!date.isEmpty()) {
+                        p.setColor(subCol);
+                        p.setTextAlign(Paint.Align.RIGHT);
+                        c.drawText(date, w - padX, subY, p);
+                        p.setTextAlign(Paint.Align.LEFT);
+                    }
+                    p.setColor(subCol);
+                    c.drawText(ellipsize(preview, w - 2 * padX - dateColW, p), padX, subY, p);
                 }
             }
         }
@@ -810,9 +835,22 @@ public class NokiaUi extends View {
             c.drawRect(w - w * 0.008f, trackTop, w, trackTop + trackH, p);
             float segH = trackH * visible / (float) count;
             float segTop = trackTop + (trackH - segH) * first / (float) (count - visible);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.WHITE);
             c.drawRect(w - w * 0.016f, segTop, w, segTop + segH, p);
         }
+        p.setTextAlign(Paint.Align.LEFT);
         p.setTypeface(Typeface.DEFAULT);
+    }
+
+    private static String ellipsize(String s, float maxW, Paint paint) {
+        if (s == null) return "";
+        if (paint.measureText(s) <= maxW) return s;
+        String dots = "...";
+        float dotsW = paint.measureText(dots);
+        int end = s.length();
+        while (end > 0 && paint.measureText(s.substring(0, end)) + dotsW > maxW) end--;
+        return s.substring(0, Math.max(0, end)).trim() + dots;
     }
 
     private void drawEmpty(Canvas c, int w, int h, String text) {
