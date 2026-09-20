@@ -481,10 +481,42 @@ public class NokiaUi extends View {
     private float softTop(int h) { return h * 0.8875f; }
     private float screenH(int h) { return softTop(h) - statusH(h); }
 
+    // Sim v4.89: app screens are BLACK with the grey swoosh wallpaper, not flat #252728.
     private void drawScreenBackground(Canvas c, int w, int h) {
         p.setStyle(Paint.Style.FILL);
-        p.setColor(COL_SCREEN_BG);
+        p.setColor(Color.BLACK);
         c.drawRect(0, 0, w, h, p);
+        drawSwoosh(c, w, h);
+    }
+
+    // Frozen sim's screen-bg-default.svg swoosh (three translucent grey bands), drawn as paths.
+    private void drawSwoosh(Canvas c, int w, int h) {
+        float sw = w / 244f, sh = h / 362f;
+        android.graphics.Path p1 = new android.graphics.Path();
+        p1.moveTo(0, 24 * sh);
+        p1.cubicTo(23 * sw, 102 * sh, 105 * sw, 153 * sh, 244 * sw, 96 * sh);
+        p1.lineTo(244 * sw, 142 * sh);
+        p1.cubicTo(109 * sw, 188 * sh, 28 * sw, 146 * sh, 0, 71 * sh);
+        p1.close();
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#9E888888"));
+        c.drawPath(p1, p);
+        android.graphics.Path p2 = new android.graphics.Path();
+        p2.moveTo(0, 128 * sh);
+        p2.cubicTo(72 * sw, 185 * sh, 149 * sw, 222 * sh, 244 * sw, 258 * sh);
+        p2.lineTo(244 * sw, 314 * sh);
+        p2.cubicTo(139 * sw, 282 * sh, 48 * sw, 224 * sh, 0, 178 * sh);
+        p2.close();
+        p.setColor(Color.parseColor("#80999999"));
+        c.drawPath(p2, p);
+        android.graphics.Path p3 = new android.graphics.Path();
+        p3.moveTo(244 * sw, 70 * sh);
+        p3.cubicTo(187 * sw, 134 * sh, 145 * sw, 237 * sh, 126 * sw, 362 * sh);
+        p3.lineTo(181 * sw, 362 * sh);
+        p3.cubicTo(187 * sw, 255 * sh, 210 * sw, 147 * sh, 244 * sw, 112 * sh);
+        p3.close();
+        p.setColor(Color.parseColor("#45AAAAAA"));
+        c.drawPath(p3, p);
     }
 
     private void drawStatus(Canvas c, int w) {
@@ -670,9 +702,8 @@ public class NokiaUi extends View {
         drawItemRows(c, w, h, threads.size(),
                 i -> threads.get(i).address,
                 i -> {
-                    PhoneStore.Sms m = threads.get(i);
-                    String body = m.body == null ? "" : m.body.replace('\n', ' ');
-                    return body + "  " + m.dateLabel();
+                    // Sim v4.89: preview is one short line (direction + time); no date collision.
+                    return threads.get(i).directionLabel() + " " + threads.get(i).dateLabel();
                 });
     }
 
@@ -819,35 +850,16 @@ public class NokiaUi extends View {
             float nameY = top + rowH * 0.46f;
             c.drawText(ellipsize(name, w - 2 * padX, p), padX, nameY, p);
             p.setFakeBoldText(false);
-            // Preview + date line: the date column is carved out by MEASURING the
-            // actual date text (device-font-proof), then the preview is ellipsized
-            // AND hard-clipped to the boundary so it can never bleed under the date.
+            // Sim v4.89: preview is ONE line under the name, ellipsized, nothing to its right.
             if (sub != null) {
                 String s = sub.get(idx);
                 if (s != null && !s.isEmpty()) {
-                    String preview = s, date = "";
-                    int sep = s.lastIndexOf("  ");
-                    if (sep > 0 && sep < s.length() - 2) {
-                        preview = s.substring(0, sep);
-                        date = s.substring(sep).trim();
-                    }
-                    p.setTextSize(w * 0.058f);
+                    p.setTextSize(w * 0.056f);
                     float subY = top + rowH * 0.82f;
-                    float previewRight = w - padX;
-                    if (!date.isEmpty()) {
-                        float dateW = p.measureText(date);
-                        float dateLeft = w - padX - dateW;
-                        // gap between preview and date
-                        previewRight = dateLeft - w * 0.02f;
-                        p.setColor(subCol);
-                        p.setTextAlign(Paint.Align.RIGHT);
-                        c.drawText(date, w - padX, subY, p);
-                        p.setTextAlign(Paint.Align.LEFT);
-                    }
                     p.setColor(subCol);
-                    String fit = ellipsize(preview, previewRight - padX, p);
+                    String fit = ellipsize(s, w - 2 * padX, p);
                     c.save();
-                    c.clipRect(padX, top, previewRight, top + rowH);
+                    c.clipRect(padX, top, w - padX, top + rowH);
                     c.drawText(fit, padX, subY, p);
                     c.restore();
                 }
@@ -909,12 +921,10 @@ public class NokiaUi extends View {
     private void drawTitle(Canvas c, int w, int h, String title) {
         float top = statusH(h);
         float th = titleH(h);
-        p.setStyle(Paint.Style.FILL);
-        p.setColor(COL_TITLE_BG);
-        c.drawRect(0, top, w, top + th, p);
+        // Sim v4.89: the title is NOT a colored bar - transparent over the swoosh, light text.
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
-        p.setTextSize(w * 0.083f);
-        p.setColor(Color.WHITE);
+        p.setTextSize(w * 0.079f);
+        p.setColor(Color.parseColor("#DDDDDD"));
         p.setTextAlign(Paint.Align.LEFT);
         c.drawText(title, w * 0.02f, top + th * 0.72f, p);
         p.setTypeface(Typeface.DEFAULT);
