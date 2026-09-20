@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS
     }
 
     public interface Actions {
@@ -33,6 +33,11 @@ public class NokiaUi extends View {
         List<String[]> callLog();
         List<String[]> contacts();
         boolean sendSms(String number, String text);
+        List<String[]> drafts();
+        void saveDraft(String number, String text);
+        boolean addContact(String name, String number);
+        boolean updateContact(String oldName, String oldNumber, String newName, String newNumber);
+        boolean deleteContact(String name, String number);
         int missedCalls();
         int unreadSms();
         int batteryPercent();
@@ -41,11 +46,21 @@ public class NokiaUi extends View {
     private final Actions actions;
     private final Handler handler = new Handler();
     private Screen screen = Screen.IDLE;
+    private boolean locked = false;
+    private boolean unlockPending = false;
 
+    // Sim v4.89 screens.menu order.
     private static final String[] MENU_ITEMS = {
-            "Messaging", "Contacts", "Call log", "Gallery", "Organiser",
-            "Settings", "Music", "Radio", "Applications"
+            "Contacts", "Organiser", "Media", "Gallery", "Messaging",
+            "Apps.", "Log", "Settings", "STORE"
     };
+    // Sim v4.89 idle "Go to" page rows.
+    private static final String[] GOTO_ROWS = {
+            "Lock keypad", "Profiles", "Alarm clock", "Camera", "Video recorder",
+            "Calculator", "Nokia Browser", "Media player", "Conversations"};
+    // Maps each sim menu slot onto the APK's ICON_B64 index (sim icons=[1,6,5,4,0,7,2,3,8]
+    // over sim assets; APK ICON_B64_0..8 = sim assets {0,1,2,4,6,3,5,8,7}).
+    private static final int[] MENU_ICON_MAP = {1, 4, 6, 3, 0, 8, 2, 5, 7};
 
     // Sim-extracted v4.89 menu icons (56x56 PNG), embedded as base64 so the
     // launcher needs no separate resource files.
@@ -133,9 +148,11 @@ public class NokiaUi extends View {
             {"Delivery reports", "Message centres", "Msg. centre in use", "Message validity", "Messages sent via", "Use packet data", "Character support", "Rep. via same centre"},
             {"Request reports", "Allow read report", "MMS creation mode", "Image size in MMS", "Default slide timing", "MMS reception", "Allow adverts", "Configuration sett. >"},
             {"New e-mail notif.", "Allow mail reception", "Reply with orig. msg.", "Image size in e-mail", "Edit mailboxes"},
-            {"Service messages", "Message filter", "Autom. connection"}
+            {"Service messages", "Message filter", "Autom. connection"},
+            {"Camera", "Video camera", "Media player", "Radio", "Voice recorder", "Equaliser"},
+            {"Games", "Collection", "Memory card", "Downloads"}
     };
-    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages"};
+    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps."};
 
     private int selected = 0;
     private int row = 0;
@@ -147,6 +164,7 @@ public class NokiaUi extends View {
     private String callLogTitle = "All calls";
     private String cardName = "";
     private String cardNumber = "";
+    private boolean editingContact = false;
     private Screen listReturn = Screen.MENU;
     private final java.util.ArrayDeque<Integer> listBack = new java.util.ArrayDeque<>();
 
@@ -160,7 +178,14 @@ public class NokiaUi extends View {
     private final StringBuilder dialNumber = new StringBuilder();
     private final StringBuilder composeNumber = new StringBuilder();
     private final Multitap composeTap = new Multitap();
+    private int composeFocus = 0;
+    private final Multitap nameTap = new Multitap();
+    private final StringBuilder contactNumber = new StringBuilder();
+    private int contactField = 0;
     private boolean composeSent = false;
+    private boolean composeExitConfirm = false;
+    private String notice = null;
+    private final List<String[]> drafts = new ArrayList<>();
 
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Runnable minuteTick = new Runnable() {
@@ -191,10 +216,12 @@ public class NokiaUi extends View {
         switch (screen) {
             case IDLE: drawIdle(c, w, h); break;
             case MENU: drawMenu(c, w, h); break;
+            case GOTO: drawGoto(c, w, h); break;
             case LIST: drawList(c, w, h); break;
             case THREADS: drawThreads(c, w, h); break;
             case CONVERSATION: drawConversation(c, w, h); break;
             case READ: drawRead(c, w, h); break;
+            case ADD_CONTACT: drawAddContact(c, w, h); break;
             case COMPOSE_NUMBER:
             case COMPOSE_TEXT: drawCompose(c, w, h); break;
             case DIALER: drawDialer(c, w, h); break;
@@ -205,14 +232,66 @@ public class NokiaUi extends View {
             case CALLLOG_HOME: drawIconMenu(c, w, h, "Log", CALLLOG_MENU, calllogIcons); break;
             case OPTIONS: drawOptions(c, w, h); break;
         }
+        if (locked) drawLockOverlay(c, w, h);
+        if (notice != null) drawNotice(c, w, h);
+        if (composeExitConfirm) drawMailboxDialog(c, w, h, "Save message?");
         drawSoftkeys(c, w, h);
     }
 
     public boolean handleKey(int keyCode) {
+        // Sim v4.89 keypad lock: swallow everything except Unlock (left key) then *.
+        if (locked) {
+            if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT) { unlockPending = true; }
+            else if (keyCode == KeyEvent.KEYCODE_STAR && unlockPending) { locked = false; unlockPending = false; }
+            else unlockPending = false;
+            invalidate();
+            return true;
+        }
+        // Sim v4.89 "Save message?" exit confirm: only Yes/No act, all else swallowed.
+        if (composeExitConfirm) {
+            if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                if (composeTap.text().length() > 0) {
+                    actions.saveDraft(composeNumber.toString(), composeTap.text());
+                    notice = "Message saved";
+                }
+                composeNumber.setLength(0);
+                composeTap.clear();
+                composeExitConfirm = false;
+                listSection = 0;
+                listBack.clear();
+                listReturn = Screen.IDLE;
+                screen = Screen.LIST; // sim lands on the Messaging menu
+                row = 0;
+            } else if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
+                composeNumber.setLength(0);
+                composeTap.clear();
+                composeExitConfirm = false;
+                listSection = 0;
+                listBack.clear();
+                listReturn = Screen.IDLE;
+                screen = Screen.LIST;
+                row = 0;
+            }
+            invalidate();
+            return true;
+        }
+        notice = null; // any fresh key press clears a shown notice
         if (keyCode == KeyEvent.KEYCODE_ENDCALL) {
             composeTap.commit();
+            if ((screen == Screen.COMPOSE_NUMBER || screen == Screen.COMPOSE_TEXT)
+                    && (composeNumber.length() > 0 || composeTap.text().length() > 0)) {
+                composeExitConfirm = true; // sim END on a non-empty compose asks "Save message?"
+                invalidate();
+                return true;
+            }
             screen = Screen.IDLE;
             row = 0;
+            invalidate();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT && screen == Screen.IDLE) {
+            row = 0;
+            screen = Screen.GOTO; // sim idle left key is the Go to page
             invalidate();
             return true;
         }
@@ -282,12 +361,25 @@ public class NokiaUi extends View {
                 if (dialNumber.length() < 24) dialNumber.append(d);
                 break;
             case COMPOSE_NUMBER:
-                if (composeNumber.length() < 24) composeNumber.append(d);
+                if (resolvedFocus() == 0) {
+                    if (composeNumber.length() < 24) composeNumber.append(d);
+                } else {
+                    handler.removeCallbacks(commitTick);
+                    composeTap.press(d);
+                    handler.postDelayed(commitTick, 1600);
+                }
                 break;
             case COMPOSE_TEXT:
                 handler.removeCallbacks(commitTick);
                 composeTap.press(d);
                 handler.postDelayed(commitTick, 1600);
+                break;
+            case ADD_CONTACT:
+                if (contactField == 0) {
+                    handler.removeCallbacks(commitTick);
+                    nameTap.press(d);
+                    handler.postDelayed(commitTick, 1600);
+                } else if (contactNumber.length() < 24) contactNumber.append(d);
                 break;
             default: break;
         }
@@ -295,17 +387,28 @@ public class NokiaUi extends View {
 
     private void symbol(String s) {
         if (screen == Screen.DIALER && dialNumber.length() < 24) dialNumber.append(s);
-        else if (screen == Screen.COMPOSE_NUMBER && composeNumber.length() < 24) composeNumber.append(s);
+        else if (screen == Screen.COMPOSE_NUMBER && resolvedFocus() == 0 && composeNumber.length() < 24) composeNumber.append(s);
+        else if (screen == Screen.ADD_CONTACT && contactField == 1 && contactNumber.length() < 24) contactNumber.append(s);
     }
 
     private void deleteKey() {
         if (screen == Screen.DIALER && dialNumber.length() > 0) {
             dialNumber.deleteCharAt(dialNumber.length() - 1);
-        } else if (screen == Screen.COMPOSE_NUMBER && composeNumber.length() > 0) {
-            composeNumber.deleteCharAt(composeNumber.length() - 1);
+        } else if (screen == Screen.COMPOSE_NUMBER) {
+            if (resolvedFocus() == 0) {
+                if (composeNumber.length() > 0) composeNumber.deleteCharAt(composeNumber.length() - 1);
+            } else {
+                handler.removeCallbacks(commitTick);
+                composeTap.backspace();
+            }
         } else if (screen == Screen.COMPOSE_TEXT) {
             handler.removeCallbacks(commitTick);
             composeTap.backspace();
+        } else if (screen == Screen.ADD_CONTACT) {
+            if (contactField == 0) {
+                handler.removeCallbacks(commitTick);
+                nameTap.backspace();
+            } else if (contactNumber.length() > 0) contactNumber.deleteCharAt(contactNumber.length() - 1);
         }
     }
 
@@ -357,6 +460,8 @@ public class NokiaUi extends View {
                     actions.dial(cardNumber);
                     screen = Screen.IDLE;
                     row = 0;
+                } else if (row == 3) { // Edit contact
+                    openEditContact();
                 }
                 break;
             case READ:
@@ -420,17 +525,38 @@ public class NokiaUi extends View {
         switch (screen) {
             case OPTIONS: screen = optionsFrom; break;
             case MENU: screen = Screen.IDLE; row = 0; break;
+            case GOTO: screen = Screen.IDLE; row = 0; break;
             case LIST:
                 if (!listBack.isEmpty()) { listSection = listBack.pop(); row = 0; }
                 else { screen = listReturn; row = 0; }
                 break;
-            case THREADS: case COMPOSE_NUMBER: screen = Screen.LIST; row = 0; break;
+            case THREADS: screen = Screen.LIST; row = 0; break;
+            case COMPOSE_NUMBER:
+                // Sim right key: Clear the focused field first, Back only when empty.
+                if (composeNumber.length() > 0 || composeTap.text().length() > 0) clearComposeField();
+                else { screen = Screen.LIST; row = 0; }
+                break;
             case CONVERSATION: screen = Screen.THREADS; row = 0; break;
             case READ: screen = convoAddress != null ? Screen.CONVERSATION : Screen.THREADS; break;
             case COMPOSE_TEXT: screen = Screen.COMPOSE_NUMBER; break;
             case DIALER:
                 if (dialNumber.length() > 0) dialNumber.setLength(0); // sim: right key is Clear first
                 else screen = Screen.IDLE;
+                break;
+            case ADD_CONTACT:
+                if (editingContact) {
+                    // Sim: right key while editing cancels the edit, no Clear step.
+                    handler.removeCallbacks(commitTick);
+                    nameTap.clear();
+                    contactNumber.setLength(0);
+                    editingContact = false;
+                    screen = Screen.CONTACT_CARD;
+                    row = 0;
+                } else if (nameTap.text().length() > 0 || contactNumber.length() > 0) {
+                    // Sim right key: Clear the active field first, Back only when empty.
+                    if (contactField == 0) { handler.removeCallbacks(commitTick); nameTap.clear(); }
+                    else contactNumber.setLength(0);
+                } else { screen = Screen.CONTACTS_HOME; row = 0; }
                 break;
             case CALLLOG: screen = Screen.CALLLOG_HOME; row = 0; break;
             case CONTACTS: screen = Screen.IDLE; row = 0; break; // sim names right key is Exit
@@ -449,6 +575,8 @@ public class NokiaUi extends View {
             selected = (selected + delta * 3 + MENU_ITEMS.length) % MENU_ITEMS.length;
             return;
         }
+        if (screen == Screen.ADD_CONTACT) { contactField = 1 - contactField; return; }
+        if (screen == Screen.COMPOSE_NUMBER) { composeFocus = 1 - resolvedFocus(); return; }
         int count = listCount();
         if (count == 0) return;
         row = (row + delta + count) % count;
@@ -462,7 +590,8 @@ public class NokiaUi extends View {
 
     private int listCount() {
         switch (screen) {
-            case LIST: return LIST_ITEMS[listSection].length;
+            case GOTO: return GOTO_ROWS.length;
+            case LIST: return listSection == 11 ? drafts.size() : LIST_ITEMS[listSection].length;
             case THREADS: return convos.size();
             case CONVERSATION: return Math.max(convoMsgs.size(), 1);
             case CALLLOG: case CONTACTS: return rows.size();
@@ -486,6 +615,9 @@ public class NokiaUi extends View {
             case MENU:
                 openMenuItem(MENU_ITEMS[selected]);
                 break;
+            case GOTO:
+                gotoSelect(row);
+                break;
             case LIST:
                 selectListItem();
                 break;
@@ -493,9 +625,12 @@ public class NokiaUi extends View {
                 if (row == 0) {
                     rows = actions.contacts();
                     screen = Screen.CONTACTS;
-                } else if (row == 1) {
-                    // "Add new" is a form page in the sim; queued (see fix list).
-                    actions.openRoute("Contacts", "Add new");
+                } else if (row == 1) { // Add new: the sim's form page
+                    nameTap.clear();
+                    contactNumber.setLength(0);
+                    contactField = 0;
+                    editingContact = false;
+                    screen = Screen.ADD_CONTACT;
                 } else {
                     listSection = row; // 2..7 map onto the sim's static pages
                     listBack.clear();
@@ -503,6 +638,30 @@ public class NokiaUi extends View {
                     screen = Screen.LIST;
                 }
                 row = 0;
+                break;
+            case ADD_CONTACT:
+                handler.removeCallbacks(commitTick);
+                nameTap.commit();
+                if (nameTap.text().length() == 0) {
+                    notice = "Enter a name"; // sim saveContact() refuses empty names
+                    break;
+                }
+                if (editingContact) {
+                    if (actions.updateContact(cardName, cardNumber, nameTap.text(), contactNumber.toString())) {
+                        cardName = nameTap.text();
+                        cardNumber = contactNumber.toString();
+                        rows = actions.contacts();
+                    }
+                    editingContact = false;
+                    screen = Screen.CONTACT_CARD; // sim saveContact(): go('contact')
+                    row = 0;
+                } else {
+                    if (actions.addContact(nameTap.text(), contactNumber.toString())) {
+                        rows = actions.contacts();
+                        screen = Screen.CONTACTS;
+                        row = 0;
+                    }
+                }
                 break;
             case CALLLOG_HOME:
                 if (row <= 4) {
@@ -546,23 +705,14 @@ public class NokiaUi extends View {
                 }
                 break;
             case COMPOSE_NUMBER:
-                if (composeNumber.length() > 0) {
-                    composeTap.clear();
-                    screen = Screen.COMPOSE_TEXT;
+                if (resolvedFocus() == 0) {
+                    if (composeNumber.length() > 0) composeFocus = 1; // Add: on to the text
+                } else {
+                    sendCompose();
                 }
                 break;
             case COMPOSE_TEXT:
-                handler.removeCallbacks(commitTick);
-                composeTap.commit();
-                android.util.Log.i("Reborn", "send key on COMPOSE_TEXT, text=" + composeTap.text());
-                if (actions.sendSms(composeNumber.toString(), composeTap.text())) {
-                    composeSent = true;
-                    threads = actions.sms();
-            rebuildConvos();
-                    screen = Screen.THREADS;
-                    row = 0;
-                    handler.postDelayed(() -> { composeSent = false; invalidate(); }, 1500);
-                }
+                sendCompose();
                 break;
             case DIALER:
                 if (dialNumber.length() > 0) {
@@ -610,15 +760,23 @@ public class NokiaUi extends View {
                 screen = Screen.CONTACTS_HOME;
                 row = 0;
                 break;
-            case "Call log":
+            case "Log":
                 loadCatIcons();
                 screen = Screen.CALLLOG_HOME;
                 row = 0;
                 break;
-            case "Radio":
-                rows = new ArrayList<>();
-                rows.add(new String[]{"Not available", "FM radio needs the phone's radio app.", "", ""});
-                screen = Screen.CALLLOG;
+            case "Media":
+                listSection = 29;
+                listBack.clear();
+                listReturn = Screen.MENU;
+                screen = Screen.LIST;
+                row = 0;
+                break;
+            case "Apps.":
+                listSection = 30;
+                listBack.clear();
+                listReturn = Screen.MENU;
+                screen = Screen.LIST;
                 row = 0;
                 break;
             default:
@@ -638,6 +796,10 @@ public class NokiaUi extends View {
         listSection = s;
         screen = Screen.LIST;
         row = 0;
+        if (s == 11) { // Drafts: real, saved from the composer exit confirm
+            drafts.clear();
+            drafts.addAll(actions.drafts());
+        }
     }
 
     private static final int[] MSG_FOLDER_SECTIONS = {11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 23, 24};
@@ -656,6 +818,17 @@ public class NokiaUi extends View {
                 row = 0;
             } else { // rows 2..13 -> the sim's folder/settings pages
                 openListSection(MSG_FOLDER_SECTIONS[row - 2]);
+            }
+            return;
+        }
+        if (listSection == 11) { // Drafts: Edit reopens the composer prefilled
+            if (!drafts.isEmpty() && row < drafts.size()) {
+                String[] d = drafts.get(row);
+                composeNumber.setLength(0);
+                composeNumber.append(d[0]);
+                composeTap.set(d[1]);
+                composeSent = false;
+                screen = Screen.COMPOSE_NUMBER;
             }
             return;
         }
@@ -876,25 +1049,33 @@ public class NokiaUi extends View {
             float cy = (i / 3) * cellH + gridTop + cellH / 2f;
             boolean sel = i == selected;
             if (sel) {
-                p.setStyle(Paint.Style.FILL);
-                p.setColor(Color.WHITE);
+                // Sim .cell.sel: dark gradient #666->#050505, 1px #aaa border, 6px radius.
                 float pad = cellW * 0.06f;
-                c.drawRect((i % 3) * cellW + pad, (i / 3) * cellH + gridTop + pad,
-                        (i % 3) * cellW + cellW - pad, (i / 3) * cellH + gridTop + cellH - pad, p);
+                float l = (i % 3) * cellW + pad, t2 = (i / 3) * cellH + gridTop + pad;
+                float r = (i % 3) * cellW + cellW - pad, b = (i / 3) * cellH + gridTop + cellH - pad;
+                float rad = w * (6f / 240f);
+                p.setStyle(Paint.Style.FILL);
+                p.setShader(new android.graphics.LinearGradient(0, t2, 0, b,
+                        Color.parseColor("#666666"), Color.parseColor("#050505"),
+                        android.graphics.Shader.TileMode.CLAMP));
+                c.drawRoundRect(new android.graphics.RectF(l, t2, r, b), rad, rad, p);
+                p.setShader(null);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(w * (1f / 240f));
+                p.setColor(Color.parseColor("#AAAAAA"));
+                c.drawRoundRect(new android.graphics.RectF(l, t2, r, b), rad, rad, p);
+                p.setStyle(Paint.Style.FILL);
             }
-            Bitmap icon = menuIcons[i];
+            Bitmap icon = menuIcons[MENU_ICON_MAP[i]];
             if (icon != null) {
                 float ix = cx - iconSize / 2f;
                 float iy = cy - iconSize * 0.62f;
                 android.graphics.Rect dst = new android.graphics.Rect(
                         (int) ix, (int) iy, (int) (ix + iconSize), (int) (iy + iconSize));
-                p.setColorFilter(sel ? new android.graphics.PorterDuffColorFilter(
-                        Color.BLACK, android.graphics.PorterDuff.Mode.SRC_IN) : null);
-                c.drawBitmap(icon, null, dst, p);
-                p.setColorFilter(null);
+                c.drawBitmap(icon, null, dst, p); // sim selection keeps the icon unfiltered
             }
             p.setStyle(Paint.Style.FILL);
-            p.setColor(sel ? Color.BLACK : Color.WHITE);
+            p.setColor(Color.WHITE); // sim cell text stays white even when selected
             p.setTextSize(w * 0.046f);
             p.setTextAlign(Paint.Align.CENTER);
             c.drawText(MENU_ITEMS[i], cx, cy + iconSize * 0.62f, p);
@@ -924,8 +1105,137 @@ public class NokiaUi extends View {
 
     private void drawList(Canvas c, int w, int h) {
         drawTitle(c, w, h, LIST_TITLES[listSection]);
+        if (listSection == 11) { // Drafts: live list, not the static stub
+            if (drafts.isEmpty()) {
+                drawEmpty(c, w, h, "No drafts");
+                return;
+            }
+            drawItemRows(c, w, h, drafts.size(), i -> drafts.get(i)[1], i -> drafts.get(i)[0]);
+            return;
+        }
         String[] items = LIST_ITEMS[listSection];
         drawItemRows(c, w, h, items.length, i -> items[i], null, i -> listIconFor(i));
+    }
+
+    // Sim v4.89: Edit on the contact card opens the same form prefilled,
+    // retitled "Edit contact"; Save updates the existing entry.
+    private void openEditContact() {
+        nameTap.set(cardName);
+        contactNumber.setLength(0);
+        contactNumber.append(cardNumber);
+        contactField = 0;
+        editingContact = true;
+        screen = Screen.ADD_CONTACT;
+    }
+
+    // Sim v4.89 .mailboxDialog: centred dark box, #ddd border, white text.
+    private void drawMailboxDialog(Canvas c, int w, int h, String text) {
+        float top = statusH(h), bot = softTop(h);
+        float areaH = bot - top;
+        float left = w * 0.08f, right = w * 0.92f;
+        float dTop = top + areaH * 0.18f, dBot = bot - areaH * 0.25f;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#111923"));
+        c.drawRect(left, dTop, right, dBot, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(w * (2f / 240f));
+        p.setColor(Color.parseColor("#DDDDDD"));
+        c.drawRect(left, dTop, right, dBot, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.WHITE);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextSize(w * (18f / 240f));
+        p.setTextAlign(Paint.Align.CENTER);
+        c.drawText(text, w * 0.5f, dTop + (dBot - dTop) * 0.5f + w * (6f / 240f), p);
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // Sim v4.89 notice box: #eee, #555 border, centred, bottom 12%.
+    private void drawNotice(Canvas c, int w, int h) {
+        float top = statusH(h), bot = softTop(h);
+        float boxW = w * 0.76f, boxH = w * 0.12f;
+        float bx = (w - boxW) / 2f, by = bot - (bot - top) * 0.12f - boxH;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        c.drawRect(bx, by, bx + boxW, by + boxH, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(w * (2f / 240f));
+        p.setColor(Color.parseColor("#555555"));
+        c.drawRect(bx, by, bx + boxW, by + boxH, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#111111"));
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(w * 0.055f);
+        c.drawText(notice, w * 0.5f, by + boxH * 0.65f, p);
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
+    // Sim v4.89 idle "Go to" shortcut page: title + single-line rows.
+    private void drawGoto(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Go to");
+        drawItemRows(c, w, h, GOTO_ROWS.length, i -> GOTO_ROWS[i], null);
+    }
+
+    private void gotoSelect(int r) {
+        switch (r) {
+            case 0: // Lock keypad
+                locked = true;
+                unlockPending = false;
+                screen = Screen.IDLE;
+                row = 0;
+                break;
+            case 2: actions.openRoute("Organiser", "Alarm clock"); break;
+            case 3: actions.openRoute("Go to", "Camera"); break;
+            case 4: actions.openRoute("Go to", "Video recorder"); break;
+            case 5: actions.openRoute("Go to", "Calculator"); break;
+            case 6: actions.openRoute("Go to", "Nokia Browser"); break;
+            case 7: actions.openRoute("Go to", "Media player"); break;
+            case 8: // Conversations
+                threads = actions.sms();
+                rebuildConvos();
+                screen = Screen.THREADS;
+                row = 0;
+                break;
+            default: break; // Profiles: settings subtree not built yet
+        }
+    }
+
+    // Sim v4.89 .lockscreen: full-screen #08121b, big lock glyph + hint, and
+    // the sim's notice box once Unlock has been pressed ("Now press *").
+    private void drawLockOverlay(Canvas c, int w, int h) {
+        float top = statusH(h), bot = softTop(h);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#08121B"));
+        c.drawRect(0, top, w, bot, p);
+        p.setColor(Color.WHITE);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(w * 0.20f);
+        float cy = top + (bot - top) * 0.42f;
+        c.drawText("\uD83D\uDD12", w * 0.5f, cy, p);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        p.setTextSize(w * 0.10f);
+        c.drawText("Keypad locked", w * 0.5f, cy + w * 0.14f, p);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextSize(w * 0.05f);
+        c.drawText("Press Unlock, then *", w * 0.5f, cy + w * 0.24f, p);
+        p.setTypeface(Typeface.DEFAULT);
+        if (unlockPending) {
+            float boxW = w * 0.76f, boxH = w * 0.12f;
+            float bx = (w - boxW) / 2f, by = bot - (bot - top) * 0.12f - boxH;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#EEEEEE"));
+            c.drawRect(bx, by, bx + boxW, by + boxH, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(w * 0.008f);
+            p.setColor(Color.parseColor("#555555"));
+            c.drawRect(bx, by, bx + boxW, by + boxH, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#111111"));
+            p.setTextSize(w * 0.055f);
+            c.drawText("Now press *", w * 0.5f, by + boxH * 0.65f, p);
+        }
+        p.setTextAlign(Paint.Align.LEFT);
     }
 
     private void drawThreads(Canvas c, int w, int h) {
@@ -1119,48 +1429,95 @@ public class NokiaUi extends View {
         p.setTypeface(Typeface.DEFAULT);
     }
 
-    private void drawCompose(Canvas c, int w, int h) {
-        drawTitle(c, w, h, "New message");
-        float top = statusH(h) + titleH(h);
-        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
-        p.setTextAlign(Paint.Align.LEFT);
-        float y = top + screenH(h) * 0.08f;
-        p.setColor(COL_SUB);
-        p.setTextSize(w * 0.071f);
-        c.drawText("To:", w * 0.042f, y, p);
-        // Light text field like the v4.89 editor.
-        drawField(c, w, y + screenH(h) * 0.02f, composeNumber.toString(), screenH(h) * 0.10f);
-        y += screenH(h) * 0.16f;
-        if (screen == Screen.COMPOSE_TEXT) {
-            p.setColor(COL_SUB);
-            p.setTextSize(w * 0.071f);
-            c.drawText("Message:", w * 0.042f, y, p);
-            float fTop = y + screenH(h) * 0.02f;
-            float fH = screenH(h) * 0.38f;
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(COL_READ_BG);
-            c.drawRect(w * 0.042f, fTop, w * 0.958f, fTop + fH, p);
-            p.setColor(COL_READ_FG);
-            p.setTextSize(w * 0.079f);
-            android.graphics.Rect clip = new android.graphics.Rect(
-                    (int) (w * 0.042f), (int) fTop, (int) (w * 0.958f), (int) (fTop + fH));
-            c.save();
-            c.clipRect(clip);
-            drawWrapped(c, composeTap.preview(), w * 0.075f, w * 0.85f, fTop + w * 0.075f, w * 0.083f);
-            c.restore();
-            if (composeSent) {
-                p.setColor(COL_ACCENT);
-                p.setTextAlign(Paint.Align.CENTER);
-                p.setTextSize(w * 0.079f);
-                c.drawText("Message sent", w * 0.5f, fTop + fH + screenH(h) * 0.10f, p);
-                p.setTextAlign(Paint.Align.LEFT);
-            }
-        } else {
-            p.setColor(COL_SUB);
-            p.setTextSize(w * 0.071f);
-            c.drawText("Type the number, then Centre", w * 0.042f, y, p);
+    // Focus resolves to the To: field until it holds a recipient.
+    private int resolvedFocus() {
+        return composeNumber.length() == 0 ? 0 : composeFocus;
+    }
+
+    private void sendCompose() {
+        if (composeNumber.length() == 0) return;
+        handler.removeCallbacks(commitTick);
+        composeTap.commit();
+        if (composeTap.text().length() == 0) return;
+        if (actions.sendSms(composeNumber.toString(), composeTap.text())) {
+            composeSent = true;
+            threads = actions.sms();
+            rebuildConvos();
+            screen = Screen.THREADS;
+            row = 0;
+            handler.postDelayed(() -> { composeSent = false; invalidate(); }, 1500);
         }
+    }
+
+    private void clearComposeField() {
+        if (resolvedFocus() == 0) composeNumber.setLength(0);
+        else { handler.removeCallbacks(commitTick); composeTap.clear(); }
+    }
+
+    private void drawCompose(Canvas c, int w, int h) {
+        // Sim v4.89 unified composer: "New text message" title with the live
+        // (1000-len)/01 count, To:/Text: fields with the focus invert
+        // (#050505/#fff focused vs #eee/#111), and the attach strip.
+        drawTitle(c, w, h, "New text message");
+        float top = statusH(h) + titleH(h);
+        // Right-aligned character count inside the title row.
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextSize(w * 0.067f);
+        p.setColor(Color.parseColor("#DDDDDD"));
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText((1000 - composeTap.preview().length()) + "/01", w * 0.97f, statusH(h) + titleH(h) * 0.72f, p);
+        p.setTextAlign(Paint.Align.LEFT);
+
+        float pad = w * (7f / 240f); // .smsEditor padding
+        float x = pad;
+        float fw = w - pad * 2;
+        float y = top + pad;
+        float labelSize = w * 0.062f;
+        float fieldH = w * (34f / 240f) + w * (12f / 240f); // min-height 34 + padding
+        int focus = resolvedFocus();
+        // To:
+        p.setTextSize(labelSize);
+        p.setColor(Color.WHITE);
+        c.drawText("To:", x, y + labelSize, p);
+        y += labelSize + w * (4f / 240f); // label margin-top
+        drawComposeField(c, w, x, y, fw, fieldH, composeNumber.toString(), focus == 0);
+        y += fieldH + w * (4f / 240f);
+        // Text:
+        p.setTextSize(labelSize);
+        p.setColor(Color.WHITE);
+        c.drawText("Text:", x, y + labelSize, p);
+        y += labelSize + w * (4f / 240f);
+        float textH = w * (92f / 240f); // .smsEditor .textField height
+        drawComposeField(c, w, x, y, fw, textH, composeTap.preview(), focus == 1);
+        y += textH;
+        // Attach strip: 30px, centred glyphs.
+        float stripH = w * (30f / 240f);
+        p.setTextSize(w * (20f / 240f));
+        p.setColor(Color.parseColor("#DDDDDD"));
+        p.setTextAlign(Paint.Align.CENTER);
+        c.drawText("\u2039 \uD83C\uDF9E \uD83D\uDCF7 \uD83D\uDDBC \u266A \u25A3 \u203A", w * 0.5f, y + stripH * 0.72f, p);
+        p.setTextAlign(Paint.Align.LEFT);
         p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // Sim v4.89 editor field: 1px #aaa border, #eee/#111, focused inverts to
+    // #050505/#fff; text followed by a 2px cursor bar.
+    private void drawComposeField(Canvas c, int w, float x, float y, float fw, float fh, String text, boolean focused) {
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(focused ? Color.parseColor("#050505") : Color.parseColor("#EEEEEE"));
+        c.drawRect(x, y, x + fw, y + fh, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(w * (1f / 240f));
+        p.setColor(Color.parseColor("#AAAAAA"));
+        c.drawRect(x, y, x + fw, y + fh, p);
+        p.setStyle(Paint.Style.FILL);
+        float fPad = w * (6f / 240f);
+        p.setTextSize(w * (15f / 240f) * 1.35f);
+        p.setColor(focused ? Color.WHITE : Color.parseColor("#111111"));
+        c.save();
+        c.clipRect((int) x, (int) y, (int) (x + fw), (int) (y + fh));
+        drawWrapped(c, text, x + fPad, fw - fPad * 2, y + fPad + p.getTextSize(), p.getTextSize() * 1.15f);
+        c.restore();
     }
 
     private void drawField(Canvas c, int w, float top, String text, float height) {
@@ -1186,6 +1543,59 @@ public class NokiaUi extends View {
         p.setTypeface(Typeface.DEFAULT);
     }
 
+    private void drawAddContact(Canvas c, int w, int h) {
+        // Sim v4.89 addcontact: title + two .field boxes (Name / Mobile), active
+        // field outlined #2384ad with a cursor bar.
+        drawTitle(c, w, h, editingContact ? "Edit contact" : "Add new contact");
+        float top = statusH(h) + titleH(h);
+        float pad = w * (12f / 240f);          // .contactForm padding
+        float x = pad;
+        float fw = w - pad * 2;
+        float fPad = w * (7f / 240f);          // .field padding
+        float labelSize = w * 0.045f;
+        float valueSize = w * 0.078f;
+        float valueH = w * (20f / 240f);       // .field b min-height
+        float fieldH = fPad * 2 + labelSize * 1.2f + valueH;
+        float y = top + w * (8f / 240f);       // .field margin
+        String[] labels = {"Name", "Mobile"};
+        String[] values = {nameTap.preview(), contactNumber.toString()};
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        for (int fi = 0; fi < 2; fi++) {
+            boolean active = contactField == fi;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#EDF3F4"));
+            c.drawRect(x, y, x + fw, y + fieldH, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(w * (1f / 240f));
+            p.setColor(Color.parseColor("#78909B"));
+            c.drawRect(x, y, x + fw, y + fieldH, p);
+            if (active) {
+                p.setStrokeWidth(w * (2f / 240f));
+                p.setColor(Color.parseColor("#2384AD"));
+                c.drawRect(x, y, x + fw, y + fieldH, p);
+            }
+            p.setStyle(Paint.Style.FILL);
+            p.setTextAlign(Paint.Align.LEFT);
+            p.setTextSize(labelSize);
+            p.setColor(Color.parseColor("#35637A"));
+            c.drawText(labels[fi], x + fPad, y + fPad + labelSize, p);
+            p.setTextSize(valueSize);
+            p.setColor(Color.parseColor("#222222"));
+            p.setFakeBoldText(true);
+            float vy = y + fPad + labelSize * 1.2f + valueH * 0.78f;
+            String v = ellipsize(values[fi], fw - fPad * 2 - w * 0.02f, p);
+            c.drawText(v, x + fPad, vy, p);
+            if (active) { // cursor bar after the text
+                float cxPos = x + fPad + p.measureText(v) + w * (2f / 240f);
+                p.setColor(Color.parseColor("#222222"));
+                c.drawRect(cxPos, vy - valueSize * 0.85f, cxPos + w * (2f / 240f), vy + valueSize * 0.15f, p);
+            }
+            p.setFakeBoldText(false);
+            y += fieldH + w * (8f / 240f);
+        }
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
     private void drawContactCard(Canvas c, int w, int h) {
         drawTitle(c, w, h, cardName);
         String[] cardRows = {"Mobile  " + cardNumber, "Send message", "Call", "Edit contact"};
@@ -1207,6 +1617,24 @@ public class NokiaUi extends View {
                 i -> rows.get(i).length > 1 ? rows.get(i)[1] + "  " + (rows.get(i).length > 2 ? rows.get(i)[2] : "") : null);
     }
 
+    // Sim v4.89 .row.sel / .cell.sel: dark gradient pill (#5d5d5d->#090909),
+    // 1px #aaa border, 6px radius; text stays white (never a white band).
+    private void drawSelPill(Canvas c, int w, float top, float height) {
+        float rad = w * (6f / 240f);
+        android.graphics.RectF rf = new android.graphics.RectF(0, top, w, top + height);
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(new android.graphics.LinearGradient(0, top, 0, top + height,
+                Color.parseColor("#5D5D5D"), Color.parseColor("#090909"),
+                android.graphics.Shader.TileMode.CLAMP));
+        c.drawRoundRect(rf, rad, rad, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(w * (1f / 240f));
+        p.setColor(Color.parseColor("#AAAAAA"));
+        c.drawRoundRect(rf, rad, rad, p);
+        p.setStyle(Paint.Style.FILL);
+    }
+
     // Sim v4.89 category menu: transparent title, black+swoosh bg (global),
     // icon + label rows, full white inverted selection, right-edge scrollbar.
     private void drawIconMenu(Canvas c, int w, int h, String title, String[] labels, Bitmap[] icons) {
@@ -1226,12 +1654,8 @@ public class NokiaUi extends View {
             int idx = first + i;
             float top = listTop + i * rowH;
             boolean sel = idx == row;
-            if (sel) {
-                p.setStyle(Paint.Style.FILL);
-                p.setColor(Color.WHITE);
-                c.drawRect(0, top, w, top + rowH, p);
-            }
-            int fg = sel ? Color.BLACK : Color.WHITE;
+            if (sel) drawSelPill(c, w, top, rowH);
+            int fg = Color.WHITE; // sim rows keep white text when selected
             float cy = top + rowH / 2f;
             float textX = padX;
             Bitmap ic = icons != null && idx < icons.length ? icons[idx] : null;
@@ -1286,13 +1710,9 @@ public class NokiaUi extends View {
             int idx = first + i;
             float top = listTop + i * rowH;
             boolean sel = idx == row;
-            if (sel) {
-                p.setStyle(Paint.Style.FILL);
-                p.setColor(Color.WHITE);
-                c.drawRect(0, top, w, top + rowH, p);
-            }
-            int mainCol = sel ? Color.BLACK : Color.WHITE;
-            int subCol = sel ? Color.parseColor("#333333") : COL_SUB;
+            if (sel) drawSelPill(c, w, top, rowH);
+            int mainCol = Color.WHITE; // sim .row.sel keeps white text
+            int subCol = COL_SUB;
             float textX = padX;
             if (icons != null) {
                 Bitmap ic = icons.get(idx);
@@ -1443,8 +1863,33 @@ public class NokiaUi extends View {
             case "Clear":
                 if (from == Screen.DIALER) dialNumber.setLength(0);
                 break;
+            case "Send":
+                if (from == Screen.COMPOSE_NUMBER) sendCompose();
+                break;
+            case "Clear field":
+                if (from == Screen.COMPOSE_NUMBER) clearComposeField();
+                break;
+            case "Add recipient >":
+                if (from == Screen.COMPOSE_NUMBER) composeFocus = 0;
+                break;
+            case "Exit editor":
+                if (from == Screen.COMPOSE_NUMBER) { screen = Screen.LIST; row = 0; }
+                break;
+            case "Edit":
+                if (from == Screen.CONTACT_CARD) openEditContact();
+                break;
+            case "Delete":
+                if (from == Screen.CONTACT_CARD) {
+                    if (actions.deleteContact(cardName, cardNumber)) {
+                        rows = actions.contacts();
+                        notice = "Contact deleted"; // sim notice, then back to names
+                    }
+                    screen = Screen.CONTACTS;
+                    row = 0;
+                }
+                break;
             case "Save number": case "Contact details": case "Message details":
-            case "Forward": case "Delete": case "Delete conversation": case "Mark as read":
+            case "Forward": case "Delete conversation": case "Mark as read":
             case "Main menu view":
                 // Not yet implemented behind the scenes; the C2 shows these in the
                 // list, so they are present for parity and safe to highlight.
@@ -1486,14 +1931,17 @@ public class NokiaUi extends View {
             float ry = listTop + i * rowH;
             boolean sel = idx == optionsSel;
             if (sel) {
+                // Sim .opt.sel: flat #386078, white bold text.
                 p.setStyle(Paint.Style.FILL);
-                p.setColor(Color.WHITE);
+                p.setColor(Color.parseColor("#386078"));
                 c.drawRect(0, ry, w, ry + rowH, p);
             }
-            p.setColor(sel ? Color.BLACK : Color.WHITE);
+            p.setColor(Color.WHITE);
+            p.setFakeBoldText(sel);
             p.setTextSize(w * 0.056f);
             p.setTextAlign(Paint.Align.LEFT);
             c.drawText(optionsItems[idx], w * 0.03f, ry + rowH * 0.62f, p);
+            p.setFakeBoldText(false);
         }
         // Scrollbar.
         if (count > visible) {
@@ -1548,8 +1996,11 @@ public class NokiaUi extends View {
             case READ: return new String[]{"Reply", "Reply as", "Delete", "Call", "Use detail", "Forward", "Edit", "Move", "Copy as template", "Message details", "Conversation view", "New message"};
             case CONTACTS: return new String[]{"Search", "Call >", "Send message >", "Add new >", "Edit >", "Delete contact", "Mark >"};
             case CALLLOG: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
+            case ADD_CONTACT: return new String[]{"Open", "Details", "Help"}; // sim's generic fallback
+            case COMPOSE_NUMBER: return new String[]{"Send", "Preview", "Insert", "Add recipient >", "Add subject", "Clear field", "Insert contact detail", "Insert symbol", "Editing options >", "Writing language >", "Prediction options >", "Change to multim.", "Save message >", "Sending options >", "Exit editor"};
             case DIALER: return new String[]{"Call", "Save", "Send message", "Add to contact"};
             case MENU: return new String[]{"Main menu view", "Organise", "Help"};
+            case GOTO: return new String[]{"Select", "Organise", "Help"};
             case CONTACT_CARD: return new String[]{"Add detail >", "Call", "Edit", "Delete", "Send message >", "View conversations", "Add image >", "Use number", "Set as default", "Change type >", "Copy number", "Send business card >", "Add to group", "Speed dial"};
             case CONTACTS_HOME: return new String[]{"Open", "Search", "Add new", "Memory status"};
             case CALLLOG_HOME: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
@@ -1579,10 +2030,12 @@ public class NokiaUi extends View {
     }
 
     private String[] softLabels() {
+        if (composeExitConfirm) return new String[]{"Yes", "", "No"};
         switch (screen) {
-            case IDLE: return new String[]{"Go to", "Menu", "Names"};
+            case IDLE: return locked ? new String[]{"Unlock", "", ""} : new String[]{"Go to", "Menu", "Names"};
             case OPTIONS: return new String[]{"", "Select", "Back"};
             case MENU: return new String[]{"Options", "Select", "Exit"};
+            case GOTO: return new String[]{"Options", "Select", "Back"};
             case LIST: {
                 String centre = "Select";
                 if (listSection == 11) centre = "Edit"; // Drafts
@@ -1592,7 +2045,13 @@ public class NokiaUi extends View {
             case THREADS: return new String[]{"Options", "Open", "Back"};
             case CONVERSATION: return new String[]{"Options", "Open", "Back"};
             case READ: return new String[]{"Options", "Reply", "Back"};
-            case COMPOSE_NUMBER: return new String[]{"", "Next", "Back"};
+            case COMPOSE_NUMBER:
+                return new String[]{"Options", resolvedFocus() == 0 ? "Add" : (composeNumber.length() > 0 ? "Send" : "Add"),
+                        (composeNumber.length() > 0 || composeTap.text().length() > 0) ? "Clear" : "Back"};
+            case ADD_CONTACT:
+                return new String[]{"Options", "Save",
+                        editingContact ? "Back" :
+                                ((nameTap.text().length() > 0 || contactNumber.length() > 0) ? "Clear" : "Back")};
             case COMPOSE_TEXT: return new String[]{"", "Send", "Back"};
             case DIALER: return new String[]{"Options", "Save", dialNumber.length() > 0 ? "Clear" : "Back"};
             case CALLLOG: return new String[]{"Options", "Call", "Back"};
@@ -1602,4 +2061,4 @@ public class NokiaUi extends View {
             default: return new String[]{"", "", "Back"};
         }
     }
-                }
+            }
