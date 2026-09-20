@@ -31,7 +31,9 @@ public final class PhoneStore {
 
     public static List<Sms> sms(Context c, int limit) {
         List<Sms> out = new ArrayList<>();
-        Uri uri = Uri.parse("content://sms/inbox");
+        // All types, not just the inbox: sent messages (type 2) belong in the
+        // conversation list too (S40 conversations show both directions).
+        Uri uri = Uri.parse("content://sms");
         String[] cols = {"address", "body", "date", "type", "read"};
         try (Cursor cur = c.getContentResolver().query(uri, cols, null, null, "date DESC")) {
             while (cur != null && cur.moveToNext() && out.size() < limit) {
