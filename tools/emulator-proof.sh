@@ -413,14 +413,17 @@ tap_key CENTER; sleep 2
 for d in D0 D7 D7 D0 D0 D9 D0 D0 D1 D2 D3; do tap_key "$d"; sleep 1; done
 shot 10-compose-number
 tap_key CENTER; sleep 2
-# Multitap "hi": 4 4 (commit window) then 4 4 4 (commit window).
-tap_key D4; sleep 0.3
-tap_key D4; sleep 2
-tap_key D4; sleep 0.3
-tap_key D4; sleep 0.3
-tap_key D4; sleep 2
+# Multitap "hi": 4 4 (commit window) then 4 4 4 (commit window). Same-key
+# presses go in ONE adb shell: separate adb calls take >1s each and blew the
+# app's 1100ms commit window (proven: shot read "ggggg" instead of "hi").
+read -r D4X D4Y < <(tapf $D4)
+"${ADB[@]}" shell "input tap $D4X $D4Y; sleep 0.25; input tap $D4X $D4Y"
+sleep 2
+"${ADB[@]}" shell "input tap $D4X $D4Y; sleep 0.25; input tap $D4X $D4Y; sleep 0.25; input tap $D4X $D4Y"
+sleep 2
 shot 11-compose-text
-tap_key CENTER; sleep 3; shot 12-sent
+# Send is the left softkey on the compose screen, not CENTER.
+tap_key LSK; sleep 3; shot 12-sent
 
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
