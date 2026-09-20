@@ -1,10 +1,10 @@
 screen 1080x1920
 Performing Streamed Install
 Success
-DIAG: installed:     versionName=0.1.0
+DIAG: installed: 
 priority=0 preferredOrder=0 match=0x0 specificIndex=-1 isDefault=false
 android/com.android.internal.app.ResolverActivity
-DIAG foreground:     mResumedActivity: ActivityRecord{56811a5 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t15}
+DIAG foreground:     mResumedActivity: ActivityRecord{e8d47b3 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t13}
 DIAG: raw touch device: /dev/input/event11
 keypad top 986 height 808
 screenshots/01-idle-keypad.png: 1080x1920 ok
@@ -15,10 +15,10 @@ screenshots/05-sms-inbox.png: 1080x1920 ok
 screenshots/06-dialer.png: 1080x1920 ok
 screenshots/07-dial-bridge.png: 1080x1920 ok
 DIAG power:   mWakefulness=Awake
-DIAG foreground:     mResumedActivity: ActivityRecord{56811a5 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t15}
+DIAG foreground:     mResumedActivity: ActivityRecord{e8d47b3 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t13}
 screenshots/08-incoming-call.png: 1080x1920 ok
 DIAG power:   mWakefulness=Awake
-DIAG foreground:     mResumedActivity: ActivityRecord{56811a5 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t15}
+DIAG foreground:     mResumedActivity: ActivityRecord{e8d47b3 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t13}
 screenshots/09-calllog.png: 1080x1920 ok
 screenshots/10-compose-number.png: 1080x1920 ok
 screenshots/11-compose-text.png: 1080x1920 ok
