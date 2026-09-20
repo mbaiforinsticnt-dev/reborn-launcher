@@ -286,22 +286,35 @@ def lum(x, y):
     if channels >= 3:
         return (out[o] + out[o+1] + out[o+2]) // 3
     return out[o]
-# Layout is deterministic (MainActivity weights 55/45): the keypad is the
-# bottom 45% of the app window, which ends at the nav bar. Find the nav bar
-# first (pure black from the bottom), compute the split, then verify the
-# deck really is dark there (guards against a dialog covering the frame).
+x = w // 2
+run = 0
+KT = None
+for y in range(h // 4, h):
+    if lum(x, y) < 80:
+        run += 1
+        if run >= 100:
+            KT = y - 99
+            break
+    else:
+        run = 0
+if KT is None:
+    print('REASON no-dark-keypad-run', file=sys.stderr)
+    sys.exit(1)
 y = h - 1
 nx = w // 16
-while y > h // 2 and lum(nx, y) < 8:
+while y > KT and lum(nx, y) < 8:
     y -= 1
 NT = y + 1
 if NT >= h - 2:
+    # no pure-black nav bar found: something (ANR dialog) covers the frame
     print('REASON no-nav-bar', file=sys.stderr)
     sys.exit(1)
-KT = NT * 55 // 100
-x = w // 2
-if lum(x, KT + 10) > 80 or lum(x, NT - 10) > 80:
-    print('REASON light-keypad-deck', file=sys.stderr)
+if NT < KT + 200:
+    print('REASON nav-inside-keypad', file=sys.stderr)
+    sys.exit(1)
+# keypad bottom padding must still be dark slate (dialog would be light)
+if lum(x, NT - 10) > 80:
+    print('REASON light-keypad-bottom', file=sys.stderr)
     sys.exit(1)
 print(KT, NT - KT)
 PY
@@ -426,7 +439,7 @@ read -r D4X D4Y < <(tapf $D4)
 # same-key presses CONCURRENTLY so both land inside the multitap window.
 # Capture what a real 'input tap' emits so the sendevent path is diagnosable
 # from the published proof log if it still misses.
-"${ADB[@]}" shell "getevent -lt -c 40 > /tmp/evcap.txt 2>&1 & GPID=\$!; sleep 0.6; input tap $D4X $D4Y >/dev/null 2>&1; sleep 1.2; kill \$GPID 2>/dev/null; cat /tmp/evcap.txt" | awk 'NR<=40{print "DIAG evcap: " $0}'
+"${ADB[@]}" shell "EV=/data/local/tmp/evcap.txt; getevent -lt -c 40 > \$EV 2>&1 & GPID=\$!; sleep 0.6; input tap $D4X $D4Y >/dev/null 2>&1; sleep 1.2; kill \$GPID 2>/dev/null; cat \$EV 2>/dev/null" | awk 'NR<=40{print "DIAG evcap: " $0}' || true
 if [ -n "$RAWDEVS" ]; then
   # Full type-B sequence on every MT-capable device (usually exactly one).
   # ~30ms per sendevent, presses 350ms apart: well inside the 1600ms window.
