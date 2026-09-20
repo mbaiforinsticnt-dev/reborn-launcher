@@ -1,11 +1,12 @@
 screen 1080x1920
+watchdog: swept ANR (com.android.systemui)
 Performing Streamed Install
 Success
 DIAG: installed:     versionName=0.1.0
 priority=0 preferredOrder=0 match=0x0 specificIndex=-1 isDefault=false
 android/com.android.internal.app.ResolverActivity
-Failed to write while dumping service activity: Broken pipe
-DIAG foreground:     mResumedActivity: ActivityRecord{a646e40 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t13}
+DIAG foreground:     mResumedActivity: ActivityRecord{c3e2ff5 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t11}
+DIAG: raw touch device: /dev/input/event11
 keypad top 986 height 808
 screenshots/01-idle-keypad.png: 1080x1920 ok
 screenshots/02-menu.png: 1080x1920 ok
@@ -14,15 +15,11 @@ screenshots/04-conversations-empty.png: 1080x1920 ok
 screenshots/05-sms-inbox.png: 1080x1920 ok
 screenshots/06-dialer.png: 1080x1920 ok
 screenshots/07-dial-bridge.png: 1080x1920 ok
-Failed to write while dumping service power: Broken pipe
 DIAG power:   mWakefulness=Awake
-Failed to write while dumping service activity: Broken pipe
-DIAG foreground:     mResumedActivity: ActivityRecord{a646e40 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t13}
+DIAG foreground:     mResumedActivity: ActivityRecord{c3e2ff5 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t11}
 screenshots/08-incoming-call.png: 1080x1920 ok
-Failed to write while dumping service power: Broken pipe
 DIAG power:   mWakefulness=Awake
-Failed to write while dumping service activity: Broken pipe
-DIAG foreground:     mResumedActivity: ActivityRecord{a646e40 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t13}
+DIAG foreground:     mResumedActivity: ActivityRecord{c3e2ff5 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t11}
 screenshots/09-calllog.png: 1080x1920 ok
 screenshots/10-compose-number.png: 1080x1920 ok
 screenshots/11-compose-text.png: 1080x1920 ok
@@ -33,3 +30,7 @@ DIAG: send tap 2 did not register; retrying
 screenshots/12-sent.png: 1080x1920 ok
 DIAG: send tap 3 did not register; retrying
 screenshots/12-sent.png: 1080x1920 ok
+DIAG: send never registered; Reborn logcat:
+--------- beginning of kernel
+--------- beginning of main
+--------- beginning of system
