@@ -38,11 +38,65 @@ for i in $(seq 1 10); do
   sleep 4
 done
 [ -n "$W" ] && [ -n "$H" ] || { echo "DIAG: could not read screen size"; exit 1; }
-KT=$(( H * 55 / 100 ))
+# Keypad geometry from a real frame: the keypad background is dark slate
+# (32,36,42) and the system nav bar is pure black. wm-size fractions lie
+# because the app window excludes the nav bar (proven: assumed KT=1056 but
+# measured 986; taps landed one row low and opened the dialer instead of
+# the menu).
+KT=""; KH=""
+for i in 1 2 3 4 5; do
+  "${ADB[@]}" exec-out screencap > /tmp/reborn_geo.raw 2>/dev/null || true
+  if GEO=$(python3 - /tmp/reborn_geo.raw <<'PY'
+import struct, sys
+d = open(sys.argv[1], 'rb').read()
+if len(d) < 12:
+    sys.exit(1)
+w, h, fmt = struct.unpack('<III', d[:12])
+px = d[12:]
+if len(px) != w * h * 4:
+    if len(d) == w * h * 4:
+        px = d
+    else:
+        sys.exit(1)
+def ch(x, y, c):
+    return px[(y * w + x) * 4 + c]
+x = w // 2
+run = 0
+KT = None
+for y in range(h // 4, h):
+    dark = (ch(x, y, 0) + ch(x, y, 1) + ch(x, y, 2)) < 240
+    if dark:
+        run += 1
+        if run >= 100:
+            KT = y - 99
+            break
+    else:
+        run = 0
+if KT is None:
+    sys.exit(1)
+y = h - 1
+nx = w // 16  # away from the nav-bar buttons (triangle/circle/square)
+while y > KT and ch(nx, y, 0) == 0 and ch(nx, y, 1) == 0 and ch(nx, y, 2) == 0:
+    y -= 1
+NT = y + 1
+if NT < KT + 200:
+    NT = h
+print(KT, NT - KT)
+PY
+); then
+    read -r KT KH <<< "$GEO"
+    [ -n "$KT" ] && [ -n "$KH" ] && break
+  fi
+  echo "DIAG: geometry detection failed (attempt $i); retrying"
+  sleep 3
+done
+[ -n "$KT" ] && [ -n "$KH" ] || { echo "DIAG: could not detect keypad geometry"; exit 1; }
 
 # This image ANRs random system apps and the modal dialog eats every tap.
 # Watchdog sweeps every 4s: kill the ANR'd package and tap "Wait" away.
+NOSWEEP="/tmp/reborn_nosweep"
 anr_sweep() {
+  [ -f "$NOSWEEP" ] && return 0
   WIN=$("${ADB[@]}" shell "dumpsys window windows" 2>/dev/null | tr -d '\r') || return 0
   echo "$WIN" | grep -qi "Not Responding" || return 0
   PKG=$(echo "$WIN" | grep -oiE "(Not Responding|Application Error): *[a-zA-Z0-9._]+" | head -1 | sed -E 's/.*: *//')
@@ -51,9 +105,15 @@ anr_sweep() {
     pid=$("${ADB[@]}" shell pidof "$p" 2>/dev/null | tr -d '\r')
     [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" 2>/dev/null
   done
-  "${ADB[@]}" shell input tap $((W * 50 / 100)) $((H * 55 / 100)) 2>/dev/null
+  sleep 2
+  # Tap "Wait" only if the dialog survived the kill; a blind tap here landed
+  # on the stock incoming-call DECLINE button and ate the proof call.
+  WIN2=$("${ADB[@]}" shell "dumpsys window windows" 2>/dev/null | tr -d '\r') || return 0
+  if echo "$WIN2" | grep -qi "Not Responding"; then
+    "${ADB[@]}" shell input tap $((W * 50 / 100)) $((H * 55 / 100)) 2>/dev/null
+  fi
   echo "watchdog: swept ANR ($PKG)"
-  sleep 3
+  sleep 2
   return 0
 }
 anr_watchdog() {
@@ -168,12 +228,17 @@ tap_key CALL; sleep 3; shot 07-dial-bridge
 "${ADB[@]}" shell input keyevent KEYCODE_BACK
 sleep 2
 
-# Real inbound call through the emulator modem.
+# Real inbound call through the emulator modem. The incoming-call UI is the
+# stock AVD dialer; the watchdog's ANR kill/tap can dismiss it, so sweeping
+# is paused for this window.
+touch "$NOSWEEP"
 emu_console 'gsm call +15557654321'
-sleep 5
+sleep 6
 shot 08-incoming-call
 emu_console 'gsm cancel +15557654321'
-sleep 3
+sleep 2
+rm -f "$NOSWEEP"
+sleep 2
 
 # Call log: missed call from the modem must be listed.
 tap_key END; sleep 1
