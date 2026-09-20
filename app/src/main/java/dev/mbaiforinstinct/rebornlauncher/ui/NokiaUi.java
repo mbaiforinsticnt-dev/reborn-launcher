@@ -555,7 +555,7 @@ public class NokiaUi extends View {
                 String n = tm.getNetworkOperatorName();
                 if (n != null && !n.trim().isEmpty()) return n.trim();
             }
-        } catch (Exception ignored) { }
+        } catch (Throwable ignored) { }
         return "";
     }
 
