@@ -190,7 +190,7 @@ for attempt in 1 2 3 4 5 6 7 8; do
 done
 rm -f "$NOSWEEP"
 [ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install never stuck after 8 attempts"; exit 1; }
-echo "DIAG: installed: $("${ADB[@]}" shell dumpsys package "$PKG" | tr -d '\r' | grep -m1 versionName)"
+echo "DIAG: installed: $("${ADB[@]}" shell dumpsys package "$PKG" 2>/dev/null | tr -d '\r' | grep -m1 versionName || echo unreadable)"
 "${ADB[@]}" shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER | tr -d '\r' | tail -3
 
 # Permissions must exist before the launcher queries providers.
@@ -209,7 +209,7 @@ LAUNCH_OK=0
 for attempt in 1 2 3 4 5; do
   "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
   sleep 5
-  FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
+  FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | grep -m1 ResumedActivity" | tr -d '\r')
   echo "DIAG foreground: $FG"
   case "$FG" in *"$PKG"*) LAUNCH_OK=1; break ;; esac
   echo "DIAG: launcher not foreground (attempt $attempt); retrying"
@@ -388,7 +388,7 @@ fg_ours() {
     fi
     "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
     sleep 4
-    FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
+    FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | grep -m1 ResumedActivity" | tr -d '\r')
     echo "DIAG foreground: $FG"
     case "$FG" in *"$PKG"*) return 0 ;; esac
     sleep 3
