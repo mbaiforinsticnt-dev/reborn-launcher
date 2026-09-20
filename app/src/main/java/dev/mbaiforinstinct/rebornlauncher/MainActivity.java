@@ -12,10 +12,18 @@ import android.os.Bundle;
 import android.provider.AlarmClock;
 import android.provider.CalendarContract;
 import android.provider.MediaStore;
+import android.database.ContentObserver;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.CallLog;
+import android.provider.ContactsContract;
 import android.provider.Settings;
 import android.widget.LinearLayout;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import dev.mbaiforinstinct.rebornlauncher.data.PhoneStore;
 import dev.mbaiforinstinct.rebornlauncher.ui.NokiaUi;
@@ -34,6 +42,102 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     private NokiaUi ui;
     private OnScreenKeypad keypad;
 
+    // Cached phone data: loaded once, refreshed in the background when the
+    // providers change, never queried per screen open or per draw.
+    private final ExecutorService bg = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Handler bgHandler;
+    {
+        android.os.HandlerThread t = new android.os.HandlerThread("reborn-observers");
+        t.start();
+        bgHandler = new Handler(t.getLooper());
+    }
+    private List<PhoneStore.Sms> cacheSms = new ArrayList<>();
+    private List<String[]> cacheCallLog = new ArrayList<>();
+    private List<String[]> cacheContacts = new ArrayList<>();
+    private volatile int cacheUnread = 0;
+    private volatile int cacheMissed = 0;
+    private ContentObserver smsObserver;
+    private ContentObserver callLogObserver;
+    private ContentObserver contactsObserver;
+
+    private final Runnable refreshSmsTask = new Runnable() {
+        @Override public void run() { refreshSms(); }
+    };
+    private final Runnable refreshCallLogTask = new Runnable() {
+        @Override public void run() { refreshCallLog(); }
+    };
+    private final Runnable refreshContactsTask = new Runnable() {
+        @Override public void run() { refreshContacts(); }
+    };
+
+    private void refreshAll() {
+        bg.execute(refreshSmsTask);
+        bg.execute(refreshCallLogTask);
+        bg.execute(refreshContactsTask);
+    }
+
+    private void refreshSms() {
+        final List<PhoneStore.Sms> sms = PhoneStore.sms(this, 40);
+        final int unread = PhoneStore.unreadSms(this);
+        mainHandler.post(() -> {
+            cacheSms = sms;
+            cacheUnread = unread;
+            if (ui != null) ui.dataChanged();
+        });
+    }
+
+    private void refreshCallLog() {
+        final List<String[]> log = PhoneStore.callLog(this, 40);
+        final int missed = PhoneStore.missedCalls(this);
+        mainHandler.post(() -> {
+            cacheCallLog = log;
+            cacheMissed = missed;
+            if (ui != null) ui.dataChanged();
+        });
+    }
+
+    private void refreshContacts() {
+        final List<String[]> contacts = PhoneStore.contacts(this, 60);
+        mainHandler.post(() -> {
+            cacheContacts = contacts;
+            if (ui != null) ui.dataChanged();
+        });
+    }
+
+    private void registerObservers() {
+        smsObserver = observe(Uri.parse("content://sms"), refreshSmsTask);
+        callLogObserver = observe(CallLog.Calls.CONTENT_URI, refreshCallLogTask);
+        contactsObserver = observe(ContactsContract.AUTHORITY_URI, refreshContactsTask);
+    }
+
+    private ContentObserver observe(Uri uri, final Runnable refreshTask) {
+        ContentObserver observer = new ContentObserver(bgHandler) {
+            @Override public void onChange(boolean selfChange) {
+                // Providers notify in bursts; coalesce into one reload.
+                bgHandler.removeCallbacks(refreshTask);
+                bgHandler.postDelayed(refreshTask, 400);
+            }
+        };
+        getContentResolver().registerContentObserver(uri, true, observer);
+        return observer;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        refreshAll();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (smsObserver != null) getContentResolver().unregisterContentObserver(smsObserver);
+        if (callLogObserver != null) getContentResolver().unregisterContentObserver(callLogObserver);
+        if (contactsObserver != null) getContentResolver().unregisterContentObserver(contactsObserver);
+        bg.shutdownNow();
+        super.onDestroy();
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -47,6 +151,8 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
         layout.addView(keypad, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 45f));
         setContentView(layout);
+        registerObservers();
+        refreshAll();
         requestNeededPermissions();
     }
 
@@ -116,32 +222,34 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
 
     @Override
     public List<PhoneStore.Sms> sms() {
-        return PhoneStore.sms(this, 40);
+        return cacheSms;
     }
 
     @Override
     public List<String[]> callLog() {
-        return PhoneStore.callLog(this, 40);
+        return cacheCallLog;
     }
 
     @Override
     public List<String[]> contacts() {
-        return PhoneStore.contacts(this, 60);
+        return cacheContacts;
     }
 
     @Override
     public boolean sendSms(String number, String text) {
-        return PhoneStore.sendSms(number, text);
+        boolean ok = PhoneStore.sendSms(number, text);
+        if (ok) bg.execute(refreshSmsTask);
+        return ok;
     }
 
     @Override
     public int missedCalls() {
-        return PhoneStore.missedCalls(this);
+        return cacheMissed;
     }
 
     @Override
     public int unreadSms() {
-        return PhoneStore.unreadSms(this);
+        return cacheUnread;
     }
 
     @Override
