@@ -53,11 +53,17 @@ anr_sweep() {
   WIN=$("${ADB[@]}" shell "dumpsys window windows" 2>/dev/null | tr -d '\r') || return 0
   echo "$WIN" | grep -qi "Not Responding" || return 0
   PKG=$(echo "$WIN" | grep -oiE "(Not Responding|Application Error): *[a-zA-Z0-9._]+" | head -1 | sed -E 's/.*: *//')
-  for p in $PKG com.android.systemui com.android.settings; do
-    [ -z "$p" ] && continue
-    pid=$("${ADB[@]}" shell pidof "$p" 2>/dev/null | tr -d '\r')
-    [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" 2>/dev/null
-  done
+  # Never kill system-critical packages: killing settings/systemui mid-boot
+  # crashes system_server and takes the package service down with it (seen
+  # as "Can't find service: package" at install). Those get the Wait tap only.
+  case "$PKG" in
+    ""|android|com.android.systemui|com.android.settings|com.android.phone|com.android.providers*|com.android.server*)
+      : ;;
+    *)
+      pid=$("${ADB[@]}" shell pidof "$PKG" 2>/dev/null | tr -d '\r')
+      [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" 2>/dev/null
+      ;;
+  esac
   sleep 2
   # Tap "Wait" only if the dialog survived the kill; a blind tap here landed
   # on the stock incoming-call DECLINE button and ate the proof call.
@@ -138,6 +144,8 @@ wait_pkg_service() {
   return 1
 }
 
+# Keep the watchdog from touching anything while the package manager works.
+touch "$NOSWEEP"
 INSTALL_OK=0
 for attempt in 1 2 3 4 5 6; do
   "${ADB[@]}" wait-for-device
@@ -149,6 +157,7 @@ for attempt in 1 2 3 4 5 6; do
   echo "DIAG: install attempt $attempt failed; waiting for package service and retrying"
   sleep 10
 done
+rm -f "$NOSWEEP"
 [ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install failed after 6 attempts"; exit 1; }
 "${ADB[@]}" shell pm list packages | tr -d '\r' | grep "$PKG" || {
   echo "DIAG: $PKG not in pm list packages after install:"
