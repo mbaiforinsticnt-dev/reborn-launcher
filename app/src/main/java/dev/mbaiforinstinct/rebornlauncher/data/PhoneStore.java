@@ -45,7 +45,7 @@ public final class PhoneStore {
                 m.unread = cur.getInt(4) == 0;
                 out.add(m);
             }
-        } catch (SecurityException ignored) {
+        } catch (Exception ignored) {
         }
         return out;
     }
@@ -54,7 +54,7 @@ public final class PhoneStore {
         Uri uri = Uri.parse("content://sms/inbox");
         try (Cursor cur = c.getContentResolver().query(uri, new String[]{"_id"}, "read = 0", null, null)) {
             return cur == null ? 0 : cur.getCount();
-        } catch (SecurityException e) {
+        } catch (Exception e) {
             return 0;
         }
     }
@@ -63,7 +63,7 @@ public final class PhoneStore {
         String sel = CallLog.Calls.TYPE + " = " + CallLog.Calls.MISSED_TYPE + " AND " + CallLog.Calls.NEW + " = 1";
         try (Cursor cur = c.getContentResolver().query(CallLog.Calls.CONTENT_URI, new String[]{CallLog.Calls._ID}, sel, null, null)) {
             return cur == null ? 0 : cur.getCount();
-        } catch (SecurityException e) {
+        } catch (Exception e) {
             return 0;
         }
     }
@@ -82,7 +82,7 @@ public final class PhoneStore {
                 String when = new SimpleDateFormat("dd/MM HH:mm", Locale.UK).format(new Date(date));
                 out.add(new String[]{name != null ? name : number, typeLabel, when, number});
             }
-        } catch (SecurityException ignored) {
+        } catch (Exception ignored) {
         }
         return out;
     }
@@ -99,7 +99,7 @@ public final class PhoneStore {
             while (cur != null && cur.moveToNext() && out.size() < limit) {
                 out.add(new String[]{cur.getString(0), cur.getString(1)});
             }
-        } catch (SecurityException ignored) {
+        } catch (Exception ignored) {
         }
         return out;
     }
