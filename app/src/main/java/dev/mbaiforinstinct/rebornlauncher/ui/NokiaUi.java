@@ -1,6 +1,8 @@
 package dev.mbaiforinstinct.rebornlauncher.ui;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -44,6 +46,29 @@ public class NokiaUi extends View {
             "Messaging", "Contacts", "Call log", "Gallery", "Organiser",
             "Settings", "Music", "Radio", "Applications"
     };
+
+    // Sim-extracted v4.89 menu icons (56x56), mapped to MENU_ITEMS by label.
+    private static final int[] MENU_ICON_RES = {
+            dev.mbaiforinstinct.rebornlauncher.R.drawable.ic_menu_messaging,
+            dev.mbaiforinstinct.rebornlauncher.R.drawable.ic_menu_contacts,
+            dev.mbaiforinstinct.rebornlauncher.R.drawable.ic_menu_calllog,
+            dev.mbaiforinstinct.rebornlauncher.R.drawable.ic_menu_gallery,
+            dev.mbaiforinstinct.rebornlauncher.R.drawable.ic_menu_organiser,
+            dev.mbaiforinstinct.rebornlauncher.R.drawable.ic_menu_settings,
+            dev.mbaiforinstinct.rebornlauncher.R.drawable.ic_menu_music,
+            dev.mbaiforinstinct.rebornlauncher.R.drawable.ic_menu_radio,
+            dev.mbaiforinstinct.rebornlauncher.R.drawable.ic_menu_applications
+    };
+    private final Bitmap[] menuIcons = new Bitmap[MENU_ICON_RES.length];
+
+    private void loadMenuIcons() {
+        if (menuIcons[0] != null) return;
+        for (int i = 0; i < MENU_ICON_RES.length; i++) {
+            try {
+                menuIcons[i] = BitmapFactory.decodeResource(getResources(), MENU_ICON_RES[i]);
+            } catch (Exception ignored) { }
+        }
+    }
 
     private static final String[][] LIST_ITEMS = {
             {"Conversations", "New message"},
@@ -560,28 +585,53 @@ public class NokiaUi extends View {
     }
 
     private void drawMenu(Canvas c, int w, int h) {
-        drawTitle(c, w, h, "Menu");
-        float gridTop = statusH(h) + titleH(h);
-        float gridHeight = softTop(h) - gridTop;
-        float cellH = gridHeight / 3f;
-        float cellW = w / 3f;
+        loadMenuIcons();
+        // Sim v4.89 menu: small plain title top-left (no blue bar), 3x3 icon
+        // grid on the dark screen, white labels, inverted selection.
+        float top = statusH(h);
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setColor(Color.WHITE);
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTextSize(w * 0.058f);
+        c.drawText("Menu", w * 0.03f, top + w * 0.075f, p);
+
+        float gridTop = top + w * 0.11f;
+        float gridBot = softTop(h);
+        float cellH = (gridBot - gridTop) / 3f;
+        float cellW = w / 3f;
+        float iconSize = Math.min(cellW, cellH) * 0.46f;
         for (int i = 0; i < MENU_ITEMS.length; i++) {
             float cx = (i % 3) * cellW + cellW / 2f;
             float cy = (i / 3) * cellH + gridTop + cellH / 2f;
-            if (i == selected) {
+            boolean sel = i == selected;
+            if (sel) {
                 p.setStyle(Paint.Style.FILL);
                 p.setColor(Color.WHITE);
-                c.drawRect(cx - cellW * 0.46f, cy - cellH * 0.30f, cx + cellW * 0.46f, cy + cellH * 0.30f, p);
+                float pad = cellW * 0.06f;
+                c.drawRect((i % 3) * cellW + pad, (i / 3) * cellH + gridTop + pad,
+                        (i % 3) * cellW + cellW - pad, (i / 3) * cellH + gridTop + cellH - pad, p);
             }
-            p.setColor(i == selected ? Color.BLACK : Color.WHITE);
-            p.setTextSize(w * 0.083f);
+            Bitmap icon = menuIcons[i];
+            if (icon != null) {
+                float ix = cx - iconSize / 2f;
+                float iy = cy - iconSize * 0.62f;
+                android.graphics.Rect dst = new android.graphics.Rect(
+                        (int) ix, (int) iy, (int) (ix + iconSize), (int) (iy + iconSize));
+                p.setColorFilter(sel ? new android.graphics.PorterDuffColorFilter(
+                        Color.BLACK, android.graphics.PorterDuff.Mode.SRC_IN) : null);
+                c.drawBitmap(icon, null, dst, p);
+                p.setColorFilter(null);
+            }
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(sel ? Color.BLACK : Color.WHITE);
+            p.setTextSize(w * 0.046f);
             p.setTextAlign(Paint.Align.CENTER);
-            c.drawText(MENU_ITEMS[i], cx, cy + w * 0.028f, p);
+            c.drawText(MENU_ITEMS[i], cx, cy + iconSize * 0.62f, p);
         }
         p.setTextAlign(Paint.Align.LEFT);
         p.setTypeface(Typeface.DEFAULT);
     }
+
 
     private float titleH(int h) { return screenH(h) * 0.097f; }
 
@@ -835,4 +885,4 @@ public class NokiaUi extends View {
             default: return new String[]{"", "", "Back"};
         }
     }
-                           }
+}
