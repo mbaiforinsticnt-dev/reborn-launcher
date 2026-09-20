@@ -331,11 +331,12 @@ done
 # Raw touchscreen device for timing-critical taps: 'input tap' spawns cost
 # >1s each on this emulator, which breaks multitap windows. sendevent
 # spawns are ~30ms, so same-key presses land within the app's window.
-RAWDEV=$("${ADB[@]}" shell getevent -pl 2>/dev/null | tr -d '\r' | awk '/^add device/{dev=$NF} /ABS_MT_TRACKING_ID/ && !done {print dev; done=1}')
-echo "DIAG: raw touch device: ${RAWDEV:-none}"
-raw_seq() { # x y -> sendevent touch sequence
-  printf 'sendevent %s 3 57 0; sendevent %s 3 53 %s; sendevent %s 3 54 %s; sendevent %s 1 330 1; sendevent %s 0 0 0; sendevent %s 3 57 4294967295; sendevent %s 1 330 0; sendevent %s 0 0 0' \
-    "$RAWDEV" "$RAWDEV" "$1" "$RAWDEV" "$2" "$RAWDEV" "$RAWDEV" "$RAWDEV" "$RAWDEV" "$RAWDEV"
+RAWDEVS=$("${ADB[@]}" shell getevent -pl 2>/dev/null | tr -d '\r' | awk '/^add device/{dev=$NF} /ABS_MT_TRACKING_ID/{print dev}' | awk '!seen[$0]++')
+echo "DIAG: raw touch devices: ${RAWDEVS:-none}"
+raw_seq() { # dev x y -> full type-B touch sequence (slot, tracking, position,
+  # pressure, BTN_TOUCH, SYN; the minimal sequence was ignored by this driver)
+  printf 'sendevent %s 3 47 0; sendevent %s 3 57 100; sendevent %s 3 53 %s; sendevent %s 3 54 %s; sendevent %s 3 58 50; sendevent %s 0 0 2; sendevent %s 1 330 1; sendevent %s 0 0 0; sleep 0.05; sendevent %s 3 57 4294967295; sendevent %s 0 0 2; sendevent %s 1 330 0; sendevent %s 0 0 0' \
+    "$1" "$1" "$1" "$2" "$1" "$3" "$1" "$1" "$1" "$1" "$1" "$1" "$1" "$1"
 }
 echo "keypad top $KT height $KH"
 
@@ -435,14 +436,27 @@ tap_key CENTER; sleep 2
 read -r D4X D4Y < <(tapf $D4)
 # Even within one adb shell, each 'input tap' spawn costs >1.1s on this
 # emulator (proven: sequential in-shell taps still read "ggggg"). Run the
-# same-key presses CONCURRENTLY so both land inside the 1100ms window.
-# Concurrent 'input tap' spawns land presses inside the app's multitap window
-# (now 1600ms; raw sendevent to /dev/input/event* produced no tap at all on
-# this image - proven: empty message field with the device detected).
-"${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
-sleep 2
-"${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
-sleep 2
+# same-key presses CONCURRENTLY so both land inside the multitap window.
+# Capture what a real 'input tap' emits so the sendevent path is diagnosable
+# from the published proof log if it still misses.
+"${ADB[@]}" shell "getevent -lt -c 40 > /tmp/evcap.txt 2>&1 & GPID=\$!; sleep 0.6; input tap $D4X $D4Y >/dev/null 2>&1; sleep 1.2; kill \$GPID 2>/dev/null; cat /tmp/evcap.txt" | awk 'NR<=40{print "DIAG evcap: " $0}'
+if [ -n "$RAWDEVS" ]; then
+  # Full type-B sequence on every MT-capable device (usually exactly one).
+  # ~30ms per sendevent, presses 350ms apart: well inside the 1600ms window.
+  for DEV in $RAWDEVS; do
+    "${ADB[@]}" shell "$(raw_seq $DEV $D4X $D4Y); sleep 0.35; $(raw_seq $DEV $D4X $D4Y)"
+  done
+  sleep 2
+  for DEV in $RAWDEVS; do
+    "${ADB[@]}" shell "$(raw_seq $DEV $D4X $D4Y); sleep 0.35; $(raw_seq $DEV $D4X $D4Y); sleep 0.35; $(raw_seq $DEV $D4X $D4Y)"
+  done
+  sleep 2
+else
+  "${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
+  sleep 2
+  "${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
+  sleep 2
+fi
 shot 11-compose-text
 # Send is the left softkey on the compose screen, not CENTER. Decisive taps
 # get lost under emulator load; retry until the frame actually changes.
