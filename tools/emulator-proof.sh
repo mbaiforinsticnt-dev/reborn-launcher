@@ -350,8 +350,12 @@ shot 01-idle-keypad
 
 tap_key CENTER; sleep 2; shot 02-menu
 
-# Messaging -> Conversations before any SMS arrives.
+# Messaging -> Conversations before any SMS arrives. Sim menu order:
+# Messaging is grid index 4 (RIGHT then DOWN from Contacts).
+tap_key RIGHT; sleep 1
+tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 03-messaging-list
+tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 04-conversations-empty
 
 # A real inbound SMS through the emulator modem.
@@ -361,7 +365,10 @@ sleep 4
 # Back to Messaging -> Conversations: message must be listed.
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2
+tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 05-sms-inbox
 
 # Dialer: END home, digits 1 2 3, green key to the system dialer.
@@ -423,19 +430,21 @@ fg_ours || { echo "DIAG: launcher not foreground after incoming call - aborting"
 # Call log: missed call from the modem must be listed.
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
-tap_key RIGHT; sleep 1
-tap_key RIGHT; sleep 1
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 09-calllog
 
 # Compose with multitap: Messaging -> New message -> number -> text -> send.
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
-tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
 tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2
 tap_key CENTER; sleep 2
 for d in D0 D7 D7 D0 D0 D9 D0 D0 D1 D2 D3; do tap_key "$d"; sleep 1; done
 shot 10-compose-number
-tap_key CENTER; sleep 2
+# Unified composer: DOWN moves focus from To: to Text: (sim behaviour).
+tap_key DOWN; sleep 1
 # Multitap "hi": 4 4 (commit window) then 4 4 4 (commit window). Same-key
 # presses go in ONE adb shell: separate adb calls take >1s each and blew the
 # app's 1100ms commit window (proven: shot read "ggggg" instead of "hi").
@@ -464,13 +473,14 @@ else
   sleep 2
 fi
 shot 11-compose-text
-# Send is the left softkey on the compose screen, not CENTER. Decisive taps
-# get lost under emulator load; retry until the frame actually changes.
-tap_key LSK; sleep 3; shot 12-sent
+# Send is the CENTER key on the unified compose screen (sim: centre = Send
+# when a recipient is present). Decisive taps get lost under emulator load;
+# retry until the frame actually changes.
+tap_key CENTER; sleep 3; shot 12-sent
 for r in 1 2 3; do
   if cmp -s "$SCREEN_DIR/11-compose-text.png" "$SCREEN_DIR/12-sent.png"; then
     echo "DIAG: send tap $r did not register; retrying"
-    tap_key LSK; sleep 3; shot 12-sent
+    tap_key CENTER; sleep 3; shot 12-sent
   else
     break
   fi
