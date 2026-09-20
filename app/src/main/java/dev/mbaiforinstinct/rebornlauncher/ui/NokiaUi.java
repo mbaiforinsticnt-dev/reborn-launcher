@@ -434,6 +434,16 @@ public class NokiaUi extends View {
             case CALLLOG_HOME:
                 if (row <= 4) {
                     rows = actions.callLog();
+                    if (row == 1) rows = filterCallRows(rows, "Missed");
+                    else if (row == 2) rows = filterCallRows(rows, "Incoming");
+                    else if (row == 3) rows = filterCallRows(rows, "Outgoing");
+                    else if (row == 4) { // Message recipients: latest SMS per address
+                        rows = new ArrayList<>();
+                        java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
+                        for (PhoneStore.Sms m : actions.sms()) {
+                            if (seen.add(m.address)) rows.add(new String[]{m.address, "Message", m.dateLabel(), m.address});
+                        }
+                    }
                     screen = Screen.CALLLOG;
                 } else {
                     listSection = row + 3; // 5..7 -> sections 8..10
@@ -535,6 +545,12 @@ public class NokiaUi extends View {
                 actions.openRoute("Menu", item);
                 break;
         }
+    }
+
+    private static List<String[]> filterCallRows(List<String[]> all, String typeLabel) {
+        List<String[]> out = new ArrayList<>();
+        for (String[] r : all) if (r.length > 1 && typeLabel.equals(r[1])) out.add(r);
+        return out;
     }
 
     private void openListSection(int s) {
@@ -1329,4 +1345,4 @@ public class NokiaUi extends View {
             default: return new String[]{"", "", "Back"};
         }
     }
-    }
+                        }
