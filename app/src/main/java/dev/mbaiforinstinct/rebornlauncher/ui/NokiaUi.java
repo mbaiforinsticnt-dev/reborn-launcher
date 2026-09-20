@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, LIST, THREADS, READ, COMPOSE_NUMBER, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS
+        IDLE, MENU, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS
     }
 
     public interface Actions {
@@ -151,6 +151,9 @@ public class NokiaUi extends View {
     private final java.util.ArrayDeque<Integer> listBack = new java.util.ArrayDeque<>();
 
     private List<PhoneStore.Sms> threads = new ArrayList<>();
+    private List<PhoneStore.Sms> convos = new ArrayList<>(); // one row per conversation (latest first)
+    private String convoAddress;
+    private List<PhoneStore.Sms> convoMsgs = new ArrayList<>(); // selected conversation, oldest first
     private List<String[]> rows = new ArrayList<>();
     private int readIndex = 0;
 
@@ -190,6 +193,7 @@ public class NokiaUi extends View {
             case MENU: drawMenu(c, w, h); break;
             case LIST: drawList(c, w, h); break;
             case THREADS: drawThreads(c, w, h); break;
+            case CONVERSATION: drawConversation(c, w, h); break;
             case READ: drawRead(c, w, h); break;
             case COMPOSE_NUMBER:
             case COMPOSE_TEXT: drawCompose(c, w, h); break;
@@ -323,9 +327,22 @@ public class NokiaUi extends View {
                 break;
             case CONTACTS:
                 if (!rows.isEmpty()) {
-                    cardName = rows.get(row)[0];
-                    cardNumber = rows.get(row)[1];
-                    screen = Screen.CONTACT_CARD;
+                    actions.dial(rows.get(row)[1]);
+                    screen = Screen.IDLE;
+                    row = 0;
+                }
+                break;
+            case THREADS:
+                if (!convos.isEmpty()) {
+                    actions.dial(convos.get(row).address);
+                    screen = Screen.IDLE;
+                    row = 0;
+                }
+                break;
+            case CONVERSATION:
+                if (convoAddress != null) {
+                    actions.dial(convoAddress);
+                    screen = Screen.IDLE;
                     row = 0;
                 }
                 break;
@@ -360,12 +377,43 @@ public class NokiaUi extends View {
     public void dataChanged() {
         if (screen == Screen.THREADS) {
             threads = actions.sms();
+            rebuildConvos();
         } else if (screen == Screen.CALLLOG) {
             rows = actions.callLog();
         } else if (screen == Screen.CONTACTS) {
             rows = actions.contacts();
         }
         invalidate();
+    }
+
+    private void rebuildConvos() {
+        convos = new ArrayList<>();
+        for (PhoneStore.Sms m : threads) {
+            boolean seen = false;
+            for (PhoneStore.Sms x : convos) {
+                if (x.address != null && x.address.equals(m.address)) { seen = true; break; }
+            }
+            if (!seen) convos.add(m);
+        }
+    }
+
+    private void openConversation(String address) {
+        convoAddress = address;
+        convoMsgs = new ArrayList<>();
+        for (int i = threads.size() - 1; i >= 0; i--) {
+            PhoneStore.Sms m = threads.get(i);
+            if (m.address != null && m.address.equals(address)) convoMsgs.add(m);
+        }
+        row = convoMsgs.isEmpty() ? 0 : convoMsgs.size() - 1;
+        screen = Screen.CONVERSATION;
+    }
+
+    private String timeLabel(long date) {
+        return new java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK).format(new java.util.Date(date));
+    }
+
+    private String dayLabel(long date) {
+        return new java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.UK).format(new java.util.Date(date));
     }
 
     private void back() {
@@ -377,7 +425,8 @@ public class NokiaUi extends View {
                 else { screen = listReturn; row = 0; }
                 break;
             case THREADS: case COMPOSE_NUMBER: screen = Screen.LIST; row = 0; break;
-            case READ: screen = Screen.THREADS; break;
+            case CONVERSATION: screen = Screen.THREADS; row = 0; break;
+            case READ: screen = convoAddress != null ? Screen.CONVERSATION : Screen.THREADS; break;
             case COMPOSE_TEXT: screen = Screen.COMPOSE_NUMBER; break;
             case DIALER:
                 if (dialNumber.length() > 0) dialNumber.setLength(0); // sim: right key is Clear first
@@ -414,7 +463,8 @@ public class NokiaUi extends View {
     private int listCount() {
         switch (screen) {
             case LIST: return LIST_ITEMS[listSection].length;
-            case THREADS: return threads.size();
+            case THREADS: return convos.size();
+            case CONVERSATION: return Math.max(convoMsgs.size(), 1);
             case CALLLOG: case CONTACTS: return rows.size();
             case CONTACT_CARD: return 4;
             case CONTACTS_HOME: return CONTACTS_MENU.length;
@@ -478,8 +528,12 @@ public class NokiaUi extends View {
                 row = 0;
                 break;
             case THREADS:
-                if (!threads.isEmpty()) {
-                    readIndex = row;
+                if (!convos.isEmpty()) openConversation(convos.get(row).address);
+                break;
+            case CONVERSATION:
+                if (!convoMsgs.isEmpty() && row < convoMsgs.size()) {
+                    int idx = threads.indexOf(convoMsgs.get(row));
+                    readIndex = Math.max(idx, 0);
                     screen = Screen.READ;
                 }
                 break;
@@ -504,6 +558,7 @@ public class NokiaUi extends View {
                 if (actions.sendSms(composeNumber.toString(), composeTap.text())) {
                     composeSent = true;
                     threads = actions.sms();
+            rebuildConvos();
                     screen = Screen.THREADS;
                     row = 0;
                     handler.postDelayed(() -> { composeSent = false; invalidate(); }, 1500);
@@ -525,8 +580,9 @@ public class NokiaUi extends View {
                 break;
             case CONTACTS:
                 if (!rows.isEmpty()) {
-                    actions.dial(rows.get(row)[1]);
-                    screen = Screen.IDLE;
+                    cardName = rows.get(row)[0];
+                    cardNumber = rows.get(row)[1];
+                    screen = Screen.CONTACT_CARD;
                     row = 0;
                 }
                 break;
@@ -595,6 +651,7 @@ public class NokiaUi extends View {
                 screen = Screen.COMPOSE_NUMBER;
             } else if (row == 1) { // Conversations
                 threads = actions.sms();
+            rebuildConvos();
                 screen = Screen.THREADS;
                 row = 0;
             } else { // rows 2..13 -> the sim's folder/settings pages
@@ -877,12 +934,161 @@ public class NokiaUi extends View {
             drawEmpty(c, w, h, "No conversations");
             return;
         }
-        drawItemRows(c, w, h, threads.size(),
-                i -> threads.get(i).address,
+        drawItemRows(c, w, h, convos.size(),
+                i -> convos.get(i).address,
                 i -> {
-                    // Sim v4.89: preview is one short line (direction + time); no date collision.
-                    return threads.get(i).directionLabel() + " " + threads.get(i).dateLabel();
+                    // Sim v4.89 conversation preview: direction + time only ("Sent 13:12").
+                    return convos.get(i).directionLabel() + " " + timeLabel(convos.get(i).date);
                 });
+    }
+
+    private void drawConversation(Canvas c, int w, int h) {
+        String name = convoAddress == null ? "" : convoAddress;
+        drawTitle(c, w, h, name);
+        if (convoMsgs.isEmpty()) {
+            drawEmpty(c, w, h, "No messages");
+            return;
+        }
+        // Sim v4.89: title carries a right-aligned "n/N" position count.
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextSize(w * 0.067f);
+        p.setColor(Color.parseColor("#DDDDDD"));
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText((row + 1) + "/" + convoMsgs.size(), w * 0.98f, statusH(h) + titleH(h) * 0.72f, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
+
+        float areaTop = statusH(h) + titleH(h);
+        float areaBot = softTop(h);
+        float areaH = areaBot - areaTop;
+        float padX = w * (6f / 240f);           // .thread side padding
+        float maxBW = w * 0.88f;                // .bubble max-width 88%
+        float bPadH = w * (7f / 240f);          // bubble side padding 7px
+        float bPadTop = areaH * (14f / 233f);   // bubble top padding 14px
+        float bPadBot = areaH * (5f / 233f);
+        float bMargin = areaH * (4f / 233f);
+        float textSize = w * (14f / 240f);      // bubble text 14px
+        float timeSize = w * (11f / 240f);      // <small> time, ~80%
+        float lineH = textSize * 1.15f;         // sim line-height 1.15
+        float radius = w * (3f / 240f);
+        float sepInset = w * (25f / 240f);
+        float sepH = areaH * (16f / 233f);
+        float sepText = w * (12f / 240f);
+
+        // Items: separator marker (negative) or message index, oldest first.
+        List<Integer> items = new ArrayList<>();
+        List<String> sepDays = new ArrayList<>();
+        String lastDay = null;
+        for (int i = 0; i < convoMsgs.size(); i++) {
+            String day = dayLabel(convoMsgs.get(i).date);
+            if (!day.equals(lastDay)) {
+                items.add(-1 - sepDays.size());
+                sepDays.add(day);
+                lastDay = day;
+            }
+            items.add(i);
+        }
+
+        // Measure item heights.
+        int n = items.size();
+        float[] ht = new float[n];
+        List<List<String>> linesByItem = new ArrayList<>();
+        List<Float> widthByItem = new ArrayList<>();
+        for (int it = 0; it < n; it++) {
+            int v = items.get(it);
+            if (v < 0) {
+                ht[it] = sepH;
+                linesByItem.add(new ArrayList<String>());
+                widthByItem.add(0f);
+            } else {
+                PhoneStore.Sms m = convoMsgs.get(v);
+                String body = m.body == null ? "" : m.body;
+                List<String> lines = new ArrayList<>();
+                float avail = maxBW - 2 * bPadH;
+                p.setTextSize(textSize);
+                String[] words = body.split(" ");
+                StringBuilder line = new StringBuilder();
+                for (String word : words) {
+                    String candidate = line.length() == 0 ? word : line + " " + word;
+                    if (p.measureText(candidate) > avail && line.length() > 0) {
+                        lines.add(line.toString());
+                        line = new StringBuilder(word);
+                    } else {
+                        line = new StringBuilder(candidate);
+                    }
+                }
+                lines.add(line.toString());
+                float widest = 0f;
+                for (String ln : lines) widest = Math.max(widest, p.measureText(ln));
+                p.setTextSize(timeSize);
+                widest = Math.max(widest, p.measureText(timeLabel(m.date) + " "));
+                linesByItem.add(lines);
+                widthByItem.add(Math.min(maxBW, widest + 2 * bPadH));
+                ht[it] = bPadTop + lines.size() * lineH + bPadBot;
+            }
+        }
+
+        // Window: as many items as fit, anchored at the newest (bottom).
+        int selItem = 0;
+        for (int it = 0; it < n; it++) if (items.get(it) == row) { selItem = it; break; }
+        int start = n - 1;
+        float used = 0f;
+        while (start >= 0 && used + ht[start] <= areaH) { used += ht[start]; start--; }
+        start++;
+        int lastIdx = n - 1;
+        if (selItem < start) { // selection above the window: re-anchor at the selection
+            start = selItem;
+            used = 0f;
+            lastIdx = start - 1;
+            while (lastIdx + 1 < n && used + ht[lastIdx + 1] <= areaH) { lastIdx++; used += ht[lastIdx]; }
+        }
+
+        float y = areaBot - used;
+        for (int it = start; it <= lastIdx; it++) {
+            int v = items.get(it);
+            if (v < 0) {
+                // Sim dateSep: centred #555 bar, white 12px text.
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(Color.parseColor("#555555"));
+                c.drawRect(sepInset, y, w - sepInset, y + ht[it], p);
+                p.setColor(Color.WHITE);
+                p.setTextSize(sepText);
+                p.setTextAlign(Paint.Align.CENTER);
+                c.drawText(sepDays.get(-1 - v), w / 2f, y + ht[it] * 0.72f, p);
+                p.setTextAlign(Paint.Align.LEFT);
+            } else {
+                PhoneStore.Sms m = convoMsgs.get(v);
+                boolean mine = m.type == 2;
+                List<String> lines = linesByItem.get(it);
+                float bw = widthByItem.get(it);
+                float bx = mine ? (w - padX - bw) : padX;
+                p.setStyle(Paint.Style.FILL);
+                // Sim cascade: theirs #e7e7e7/#222; mine #c9dcf3 with white text.
+                p.setColor(Color.parseColor(mine ? "#C9DCF3" : "#E7E7E7"));
+                c.drawRoundRect(new android.graphics.RectF(bx, y, bx + bw, y + ht[it]), radius, radius, p);
+                int fg = mine ? Color.WHITE : Color.parseColor("#222222");
+                float textX = bx + bPadH;
+                float baseline = y + bPadTop + lineH * 0.8f;
+                for (int li = 0; li < lines.size(); li++) {
+                    if (li == 0) {
+                        // Inline <small> time prefix on the first line, as in the sim.
+                        p.setTextSize(timeSize);
+                        p.setColor(fg);
+                        String t = timeLabel(m.date) + " ";
+                        c.drawText(t, textX, baseline, p);
+                        float tw = p.measureText(t);
+                        p.setTextSize(textSize);
+                        c.drawText(lines.get(0), textX + tw, baseline, p);
+                    } else {
+                        p.setTextSize(textSize);
+                        p.setColor(fg);
+                        c.drawText(lines.get(li), textX, baseline, p);
+                    }
+                    baseline += lineH;
+                }
+            }
+            y += ht[it] + bMargin;
+        }
     }
 
     private void drawRead(Canvas c, int w, int h) {
@@ -1203,7 +1409,12 @@ public class NokiaUi extends View {
                 selectCurrent();
                 break;
             case "Reply":
-                if (from == Screen.READ && !threads.isEmpty()) {
+                if (from == Screen.CONVERSATION && convoAddress != null) {
+                    composeNumber.setLength(0);
+                    composeNumber.append(convoAddress);
+                    composeTap.clear();
+                    screen = Screen.COMPOSE_NUMBER;
+                } else if (from == Screen.READ && !threads.isEmpty()) {
                     composeNumber.setLength(0);
                     composeNumber.append(threads.get(readIndex).address);
                     composeTap.clear();
@@ -1216,6 +1427,8 @@ public class NokiaUi extends View {
                 else if (from == Screen.CONTACTS && !rows.isEmpty()) actions.dial(rows.get(row)[1]);
                 else if (from == Screen.DIALER && dialNumber.length() > 0) { actions.dial(dialNumber.toString()); dialNumber.setLength(0); screen = Screen.IDLE; }
                 else if (from == Screen.CONTACT_CARD) { actions.dial(cardNumber); screen = Screen.IDLE; row = 0; }
+                else if (from == Screen.CONVERSATION && convoAddress != null) { actions.dial(convoAddress); screen = Screen.IDLE; row = 0; }
+                else if (from == Screen.THREADS && !convos.isEmpty()) { actions.dial(convos.get(row).address); screen = Screen.IDLE; row = 0; }
                 break;
             case "Send message": case "Send message >":
                 if (from == Screen.CONTACTS && !rows.isEmpty()) { composeNumber.setLength(0); composeNumber.append(rows.get(row)[1]); composeTap.clear(); screen = Screen.COMPOSE_NUMBER; }
@@ -1331,6 +1544,7 @@ public class NokiaUi extends View {
     private String[] optionsItemsFor(Screen sc) {
         switch (sc) {
             case THREADS: return new String[]{"Call", "Conversation details", "Delete conversation", "Inbox view >", "New message >", "Mark >", "Mark all"};
+            case CONVERSATION: return new String[]{"Reply", "Delete", "Call", "Move", "Go to Drafts", "Conversation details", "Mark"};
             case READ: return new String[]{"Reply", "Reply as", "Delete", "Call", "Use detail", "Forward", "Edit", "Move", "Copy as template", "Message details", "Conversation view", "New message"};
             case CONTACTS: return new String[]{"Search", "Call >", "Send message >", "Add new >", "Edit >", "Delete contact", "Mark >"};
             case CALLLOG: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
@@ -1376,6 +1590,7 @@ public class NokiaUi extends View {
                 return new String[]{optionsItemsFor(Screen.LIST).length > 0 ? "Options" : "", centre, "Back"};
             }
             case THREADS: return new String[]{"Options", "Open", "Back"};
+            case CONVERSATION: return new String[]{"Options", "Open", "Back"};
             case READ: return new String[]{"Options", "Reply", "Back"};
             case COMPOSE_NUMBER: return new String[]{"", "Next", "Back"};
             case COMPOSE_TEXT: return new String[]{"", "Send", "Back"};
@@ -1387,4 +1602,4 @@ public class NokiaUi extends View {
             default: return new String[]{"", "", "Back"};
         }
     }
-            }
+                }
