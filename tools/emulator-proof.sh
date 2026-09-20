@@ -10,8 +10,11 @@ SCREEN_DIR="screenshots"
 PKG="dev.mbaiforinstinct.rebornlauncher"
 mkdir -p "$SCREEN_DIR"
 # Green-run logs are unreadable in the Actions UI, so mirror all output to a
-# file published alongside the screenshots.
-exec > >(tee -a "$SCREEN_DIR/proof-log.txt") 2>&1
+# log file. It must live OUTSIDE screenshots/ during the run - if the publish
+# step's own git output kept appending to it, the tree would be dirty at
+# rebase time and the publish would fail. Copied in at the end.
+PROOF_LOG=/tmp/reborn-proof-log.txt
+exec > >(tee -a "$PROOF_LOG") 2>&1
 
 "${ADB[@]}" wait-for-device
 until [ "$("${ADB[@]}" shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do
@@ -382,4 +385,5 @@ tap_key D4; sleep 2
 shot 11-compose-text
 tap_key CENTER; sleep 3; shot 12-sent
 
+cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
