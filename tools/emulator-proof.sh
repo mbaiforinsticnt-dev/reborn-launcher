@@ -298,6 +298,11 @@ tap_key CALL; sleep 3; shot 07-dial-bridge
 # stock dialer). Re-foreground our launcher explicitly instead.
 fg_ours() {
   for try in 1 2 3; do
+    # the call sequence can leave the display off (proven: post-call shots
+    # were pure black); wake and dismiss a possible keyguard first
+    "${ADB[@]}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+    "${ADB[@]}" shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) >/dev/null 2>&1 || true
+    sleep 1
     "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
     sleep 4
     FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
