@@ -423,13 +423,25 @@ tap_key CENTER; sleep 2
 # presses go in ONE adb shell: separate adb calls take >1s each and blew the
 # app's 1100ms commit window (proven: shot read "ggggg" instead of "hi").
 read -r D4X D4Y < <(tapf $D4)
-"${ADB[@]}" shell "input tap $D4X $D4Y; sleep 0.25; input tap $D4X $D4Y"
+# Even within one adb shell, each 'input tap' spawn costs >1.1s on this
+# emulator (proven: sequential in-shell taps still read "ggggg"). Run the
+# same-key presses CONCURRENTLY so both land inside the 1100ms window.
+"${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
 sleep 2
-"${ADB[@]}" shell "input tap $D4X $D4Y; sleep 0.25; input tap $D4X $D4Y; sleep 0.25; input tap $D4X $D4Y"
+"${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
 sleep 2
 shot 11-compose-text
-# Send is the left softkey on the compose screen, not CENTER.
+# Send is the left softkey on the compose screen, not CENTER. Decisive taps
+# get lost under emulator load; retry until the frame actually changes.
 tap_key LSK; sleep 3; shot 12-sent
+for r in 1 2 3; do
+  if cmp -s "$SCREEN_DIR/11-compose-text.png" "$SCREEN_DIR/12-sent.png"; then
+    echo "DIAG: send tap $r did not register; retrying"
+    tap_key LSK; sleep 3; shot 12-sent
+  else
+    break
+  fi
+done
 
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
