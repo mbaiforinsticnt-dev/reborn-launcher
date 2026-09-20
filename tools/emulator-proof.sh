@@ -227,10 +227,11 @@ for i in $(seq 1 10); do
   anr_sweep || true
   sleep 2
   "${ADB[@]}" exec-out screencap -p > /tmp/reborn_geo.png 2>/dev/null || true
-  if GEO=$(python3 - /tmp/reborn_geo.png <<'PY'
+  if GEO=$(python3 - /tmp/reborn_geo.png 2>/tmp/reborn_geo.err <<'PY'
 import struct, sys, zlib
 d = open(sys.argv[1], 'rb').read()
 if d[:8] != bytes.fromhex('89504e470d0a1a0a'):
+    print('REASON bad-png', file=sys.stderr)
     sys.exit(1)
 pos = 8
 idat = b''
@@ -297,6 +298,7 @@ for y in range(h // 4, h):
     else:
         run = 0
 if KT is None:
+    print('REASON no-dark-keypad-run', file=sys.stderr)
     sys.exit(1)
 y = h - 1
 nx = w // 16
@@ -305,11 +307,14 @@ while y > KT and lum(nx, y) < 8:
 NT = y + 1
 if NT >= h - 2:
     # no pure-black nav bar found: something (ANR dialog) covers the frame
+    print('REASON no-nav-bar', file=sys.stderr)
     sys.exit(1)
 if NT < KT + 200:
+    print('REASON nav-inside-keypad', file=sys.stderr)
     sys.exit(1)
 # keypad bottom padding must still be dark slate (dialog would be light)
 if lum(x, NT - 10) > 80:
+    print('REASON light-keypad-bottom', file=sys.stderr)
     sys.exit(1)
 print(KT, NT - KT)
 PY
@@ -317,7 +322,8 @@ PY
     read -r KT KH <<< "$GEO"
     [ -n "$KT" ] && [ -n "$KH" ] && break
   fi
-  echo "DIAG: geometry detection failed (attempt $i); retrying"
+  echo "DIAG: geometry detection failed (attempt $i): $(cat /tmp/reborn_geo.err 2>/dev/null)"
+  cp /tmp/reborn_geo.png "$SCREEN_DIR/00-geo-fail-$i.png" 2>/dev/null || true
   sleep 4
 done
 [ -n "$KT" ] && [ -n "$KH" ] || { echo "DIAG: could not detect keypad geometry"; exit 1; }
