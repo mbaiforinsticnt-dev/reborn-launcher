@@ -190,7 +190,7 @@ for attempt in 1 2 3 4 5 6 7 8; do
 done
 rm -f "$NOSWEEP"
 [ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install never stuck after 8 attempts"; exit 1; }
-echo "DIAG: installed: $("${ADB[@]}" shell dumpsys package "$PKG" 2>/dev/null | tr -d '\r' | grep -m1 versionName || echo unreadable)"
+echo "DIAG: installed: $("${ADB[@]}" shell dumpsys package "$PKG" 2>/dev/null | tr -d '\r' | awk '/versionName/ && !v {print; v=1}' || echo unreadable)"
 "${ADB[@]}" shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER | tr -d '\r' | tail -3
 
 # Permissions must exist before the launcher queries providers.
@@ -209,7 +209,7 @@ LAUNCH_OK=0
 for attempt in 1 2 3 4 5; do
   "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
   sleep 5
-  FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | grep -m1 ResumedActivity" | tr -d '\r')
+  FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | awk '/ResumedActivity/ && !v {print; v=1}'" | tr -d '\r')
   echo "DIAG foreground: $FG"
   case "$FG" in *"$PKG"*) LAUNCH_OK=1; break ;; esac
   echo "DIAG: launcher not foreground (attempt $attempt); retrying"
@@ -331,7 +331,7 @@ done
 # Raw touchscreen device for timing-critical taps: 'input tap' spawns cost
 # >1s each on this emulator, which breaks multitap windows. sendevent
 # spawns are ~30ms, so same-key presses land within the app's window.
-RAWDEV=$("${ADB[@]}" shell getevent -pl 2>/dev/null | tr -d '\r' | awk '/^add device/{dev=$NF} /ABS_MT_TRACKING_ID/{print dev; exit}')
+RAWDEV=$("${ADB[@]}" shell getevent -pl 2>/dev/null | tr -d '\r' | awk '/^add device/{dev=$NF} /ABS_MT_TRACKING_ID/ && !done {print dev; done=1}')
 echo "DIAG: raw touch device: ${RAWDEV:-none}"
 raw_seq() { # x y -> sendevent touch sequence
   printf 'sendevent %s 3 57 0; sendevent %s 3 53 %s; sendevent %s 3 54 %s; sendevent %s 1 330 1; sendevent %s 0 0 0; sendevent %s 3 57 4294967295; sendevent %s 1 330 0; sendevent %s 0 0 0' \
@@ -375,7 +375,7 @@ fg_ours() {
     "${ADB[@]}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
     "${ADB[@]}" shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) >/dev/null 2>&1 || true
     sleep 1
-    WAKE=$("${ADB[@]}" shell "dumpsys power | grep -m1 mWakefulness" | tr -d '\r')
+    WAKE=$("${ADB[@]}" shell "dumpsys power | awk '/mWakefulness/ && !v {print; v=1}'" | tr -d '\r')
     echo "DIAG power: $WAKE"
     if ! echo "$WAKE" | grep -q "Awake"; then
       echo "still asleep - toggling POWER"
@@ -384,11 +384,11 @@ fg_ours() {
       "${ADB[@]}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
       "${ADB[@]}" shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) >/dev/null 2>&1 || true
       sleep 1
-      echo "DIAG power after toggle: $("${ADB[@]}" shell "dumpsys power | grep -m1 mWakefulness" | tr -d '\r')"
+      echo "DIAG power after toggle: $("${ADB[@]}" shell "dumpsys power | awk '/mWakefulness/ && !v {print; v=1}'" | tr -d '\r')"
     fi
     "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
     sleep 4
-    FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | grep -m1 ResumedActivity" | tr -d '\r')
+    FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | awk '/ResumedActivity/ && !v {print; v=1}'" | tr -d '\r')
     echo "DIAG foreground: $FG"
     case "$FG" in *"$PKG"*) return 0 ;; esac
     sleep 3
