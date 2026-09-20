@@ -396,9 +396,6 @@ sleep 2
 rm -f "$NOSWEEP"
 sleep 2
 fg_ours || { echo "DIAG: launcher not foreground after incoming call - aborting"; exit 1; }
-# defensive: hang up any stray call before navigating
-"${ADB[@]}" shell input keyevent KEYCODE_ENDCALL || true
-sleep 1
 
 # Call log: missed call from the modem must be listed.
 tap_key END; sleep 1
