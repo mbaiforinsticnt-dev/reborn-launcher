@@ -4,17 +4,17 @@ Success
 DIAG: installed:     versionName=0.1.0
 priority=0 preferredOrder=0 match=0x0 specificIndex=-1 isDefault=false
 android/com.android.internal.app.ResolverActivity
-DIAG foreground:     mResumedActivity: ActivityRecord{6b64a46 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t11}
-DIAG: raw touch devices: /dev/input/event2
-/dev/input/event11
+DIAG foreground:     mResumedActivity: ActivityRecord{bf38876 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t13}
+DIAG: raw touch devices: /dev/input/event11
 /dev/input/event8
 /dev/input/event5
 /dev/input/event12
 /dev/input/event6
 /dev/input/event3
+/dev/input/event2
 /dev/input/event9
-/dev/input/event10
 /dev/input/event7
+/dev/input/event10
 /dev/input/event4
 keypad top 948 height 846
 screenshots/01-idle-keypad.png: 1080x1920 ok
@@ -25,34 +25,34 @@ screenshots/05-sms-inbox.png: 1080x1920 ok
 screenshots/06-dialer.png: 1080x1920 ok
 screenshots/07-dial-bridge.png: 1080x1920 ok
 DIAG power:   mWakefulness=Awake
-DIAG foreground:     mResumedActivity: ActivityRecord{6b64a46 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t11}
+DIAG foreground:     mResumedActivity: ActivityRecord{bf38876 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t13}
 screenshots/08-incoming-call.png: 1080x1920 ok
 DIAG power:   mWakefulness=Awake
-DIAG foreground:     mResumedActivity: ActivityRecord{6b64a46 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t11}
+DIAG foreground:     mResumedActivity: ActivityRecord{bf38876 u0 dev.mbaiforinstinct.rebornlauncher/.MainActivity t13}
 screenshots/09-calllog.png: 1080x1920 ok
 screenshots/10-compose-number.png: 1080x1920 ok
 DIAG evcap: add device 1: /dev/input/event0
 DIAG evcap:   name:     "Power Button"
-DIAG evcap: add device 2: /dev/input/event2
-DIAG evcap:   name:     "virtio_input_multi_touch_1"
-DIAG evcap: add device 3: /dev/input/event11
+DIAG evcap: add device 2: /dev/input/event11
 DIAG evcap:   name:     "virtio_input_multi_touch_10"
-DIAG evcap: add device 4: /dev/input/event8
+DIAG evcap: add device 3: /dev/input/event8
 DIAG evcap:   name:     "virtio_input_multi_touch_7"
-DIAG evcap: add device 5: /dev/input/event5
+DIAG evcap: add device 4: /dev/input/event5
 DIAG evcap:   name:     "virtio_input_multi_touch_4"
-DIAG evcap: add device 6: /dev/input/event12
+DIAG evcap: add device 5: /dev/input/event12
 DIAG evcap:   name:     "virtio_input_multi_touch_11"
-DIAG evcap: add device 7: /dev/input/event6
+DIAG evcap: add device 6: /dev/input/event6
 DIAG evcap:   name:     "virtio_input_multi_touch_5"
-DIAG evcap: add device 8: /dev/input/event3
+DIAG evcap: add device 7: /dev/input/event3
 DIAG evcap:   name:     "virtio_input_multi_touch_2"
+DIAG evcap: add device 8: /dev/input/event2
+DIAG evcap:   name:     "virtio_input_multi_touch_1"
 DIAG evcap: add device 9: /dev/input/event9
 DIAG evcap:   name:     "virtio_input_multi_touch_8"
-DIAG evcap: add device 10: /dev/input/event10
-DIAG evcap:   name:     "virtio_input_multi_touch_9"
-DIAG evcap: add device 11: /dev/input/event7
+DIAG evcap: add device 10: /dev/input/event7
 DIAG evcap:   name:     "virtio_input_multi_touch_6"
+DIAG evcap: add device 11: /dev/input/event10
+DIAG evcap:   name:     "virtio_input_multi_touch_9"
 DIAG evcap: add device 12: /dev/input/event4
 DIAG evcap:   name:     "virtio_input_multi_touch_3"
 DIAG evcap: add device 13: /dev/input/event1
