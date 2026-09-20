@@ -21,9 +21,38 @@ sleep 5
 "${ADB[@]}" root >/dev/null 2>&1 || true
 sleep 3
 "${ADB[@]}" wait-for-device
-SYSPID=$("${ADB[@]}" shell pidof com.android.systemui | tr -d '\r')
-[ -n "$SYSPID" ] && "${ADB[@]}" shell kill "$SYSPID" || true
+for p in com.android.systemui com.android.settings; do
+  pid=$("${ADB[@]}" shell pidof "$p" | tr -d '\r')
+  [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" || true
+done
 sleep 6
+
+# This image ANRs random system apps and the modal dialog eats every tap.
+# Watchdog: when an ANR window appears, kill the offending package so the
+# dialog dies with it. Runs until the proof ends.
+anr_watchdog() {
+  while :; do
+    WIN=$("${ADB[@]}" shell "dumpsys window windows" 2>/dev/null | tr -d '\r')
+    if echo "$WIN" | grep -qi "Not Responding"; then
+      PKG=$(echo "$WIN" | grep -oiE "Application (Not Responding|Error): [a-zA-Z0-9._]+" | head -1 | awk '{print $NF}')
+      if [ -n "$PKG" ]; then
+        pid=$("${ADB[@]}" shell pidof "$PKG" | tr -d '\r')
+        [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" || true
+        echo "watchdog: killed ANR'd $PKG"
+      else
+        for p in com.android.systemui com.android.settings; do
+          pid=$("${ADB[@]}" shell pidof "$p" | tr -d '\r')
+          [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" || true
+        done
+        echo "watchdog: killed systemui+settings (unparsed ANR)"
+      fi
+    fi
+    sleep 5
+  done
+}
+anr_watchdog &
+WATCHDOG=$!
+trap 'kill $WATCHDOG 2>/dev/null || true' EXIT
 
 read -r W H < <("${ADB[@]}" shell wm size | tr -d '\r' | sed -E 's/.*: ([0-9]+)x([0-9]+)/\1 \2/')
 [ -n "${W:-}" ] && [ -n "${H:-}" ]
