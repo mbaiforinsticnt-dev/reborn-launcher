@@ -165,9 +165,15 @@ echo "$FG" | grep -q "$PKG" || { echo "DIAG: launcher not foreground after am st
 # OnScreenKeypad view's absolute bounds. (The earlier wm-size fraction was
 # off by a full key row because the app window excludes the nav bar.)
 KT=""; KH=""
-for i in $(seq 1 8); do
-  "${ADB[@]}" shell uiautomator dump /sdcard/reborn_ui.xml >/dev/null 2>&1 || true
+for i in $(seq 1 12); do
+  rm -f /tmp/reborn_ui.xml
+  DUMP_OUT=$("${ADB[@]}" shell uiautomator dump /sdcard/reborn_ui.xml 2>&1 | tr -d '\r')
   "${ADB[@]}" pull /sdcard/reborn_ui.xml /tmp/reborn_ui.xml >/dev/null 2>&1 || true
+  if [ -s /tmp/reborn_ui.xml ]; then
+    echo "DIAG dump: size=$(stat -c%s /tmp/reborn_ui.xml) keypad=$(grep -c OnScreenKeypad /tmp/reborn_ui.xml || true) ourpkg=$(grep -c rebornlauncher /tmp/reborn_ui.xml || true)"
+  else
+    echo "DIAG dump: missing/empty; dump said: $DUMP_OUT"
+  fi
   if [ -s /tmp/reborn_ui.xml ] && GEO=$(python3 - /tmp/reborn_ui.xml <<'PY'
 import re, sys
 xml = open(sys.argv[1], encoding='utf-8', errors='replace').read()
