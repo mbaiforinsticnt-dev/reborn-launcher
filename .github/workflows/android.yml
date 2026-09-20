@@ -78,8 +78,10 @@ jobs:
           # CI setup writes local.properties etc. - an unstaged tree makes the
           # rebase refuse to run. Everything we publish is already committed.
           git reset --hard HEAD
+          # Push this exact HEAD to main with an explicit refspec (works from a
+          # branch or a detached checkout). Rebase+retry on a non-fast-forward.
           git fetch origin main
-          git rebase -X theirs origin/main || { git rebase --abort; git reset --soft origin/main; git add screenshots/*.png screenshots/proof-log.txt; git commit -m "Add emulator proof screenshots"; }
-          git push
+          git rebase -X theirs origin/main || { git rebase --abort; exit 0; }
+          git push origin HEAD:main || { git pull --rebase -X theirs origin main && git push origin HEAD:main; }
       - name: Verify screenshots exist
         run: test -s screenshots/01-idle-keypad.png -a -s screenshots/05-sms-inbox.png -a -s screenshots/08-incoming-call.png -a -s screenshots/09-calllog.png
