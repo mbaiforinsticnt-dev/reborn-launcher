@@ -34,6 +34,7 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     private static final String[] PERMS = {
             Manifest.permission.CALL_PHONE,
             Manifest.permission.READ_CONTACTS,
+            Manifest.permission.WRITE_CONTACTS,
             Manifest.permission.READ_CALL_LOG,
             Manifest.permission.READ_SMS,
             Manifest.permission.SEND_SMS
@@ -211,6 +212,7 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
                     intent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC);
                     break;
                 case "Applications":
+                case "Apps.":
                     intent = new Intent(Settings.ACTION_APPLICATION_SETTINGS);
                     break;
                 default:
@@ -223,6 +225,26 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
                 Intent view = new Intent(Intent.ACTION_VIEW);
                 view.setData(CalendarContract.CONTENT_URI);
                 intent = view;
+            }
+        } else if ("Go to".equals(section)) {
+            switch (item) {
+                case "Camera":
+                    intent = new Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA);
+                    break;
+                case "Video recorder":
+                    intent = new Intent(MediaStore.INTENT_ACTION_VIDEO_CAMERA);
+                    break;
+                case "Calculator":
+                    intent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALCULATOR);
+                    break;
+                case "Nokia Browser":
+                    intent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER);
+                    break;
+                case "Media player":
+                    intent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC);
+                    break;
+                default:
+                    break;
             }
         }
         if (intent != null) {
@@ -243,6 +265,46 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     @Override
     public List<String[]> callLog() {
         return cacheCallLog;
+    }
+
+    @Override
+    public List<String[]> drafts() {
+        List<String[]> out = new ArrayList<>();
+        String raw = getSharedPreferences("c2reborn", MODE_PRIVATE).getString("drafts", "");
+        if (raw != null && !raw.isEmpty()) {
+            for (String line : raw.split("\n")) {
+                String[] parts = line.split("\t", -1);
+                if (parts.length == 2) out.add(parts);
+            }
+        }
+        return out;
+    }
+
+    @Override
+    public void saveDraft(String number, String text) {
+        List<String[]> all = drafts();
+        all.add(0, new String[]{number, text});
+        StringBuilder sb = new StringBuilder();
+        for (String[] d : all) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(d[0]).append('\t').append(d[1]);
+        }
+        getSharedPreferences("c2reborn", MODE_PRIVATE).edit().putString("drafts", sb.toString()).apply();
+    }
+
+    @Override
+    public boolean addContact(String name, String number) {
+        return PhoneStore.insertContact(this, name, number); // contactsObserver refreshes the cache
+    }
+
+    @Override
+    public boolean updateContact(String oldName, String oldNumber, String newName, String newNumber) {
+        return PhoneStore.updateContact(this, oldName, oldNumber, newName, newNumber);
+    }
+
+    @Override
+    public boolean deleteContact(String name, String number) {
+        return PhoneStore.deleteContact(this, name, number);
     }
 
     @Override
