@@ -118,17 +118,31 @@ emu_console() {
 
 echo "screen ${W}x${H}"
 
+# The API-30 image sometimes wedges system_server during early boot and the
+# package service vanishes ("Can't find service: package"); it can take a
+# minute to come back. Gate on it instead of blind sleeps.
+wait_pkg_service() {
+  for i in $(seq 1 30); do
+    if "${ADB[@]}" shell service check package 2>/dev/null | tr -d '\r' | grep -q "found"; then
+      return 0
+    fi
+    sleep 5
+  done
+  return 1
+}
+
 INSTALL_OK=0
-for attempt in 1 2 3 4; do
+for attempt in 1 2 3 4 5 6; do
   "${ADB[@]}" wait-for-device
+  wait_pkg_service || { echo "DIAG: package service never came up"; exit 1; }
   if "${ADB[@]}" install -r app/build/outputs/apk/debug/app-debug.apk; then
     INSTALL_OK=1
     break
   fi
   echo "DIAG: install attempt $attempt failed; waiting for package service and retrying"
-  sleep 12
+  sleep 10
 done
-[ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install failed after 4 attempts"; exit 1; }
+[ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install failed after 6 attempts"; exit 1; }
 "${ADB[@]}" shell pm list packages | tr -d '\r' | grep "$PKG" || {
   echo "DIAG: $PKG not in pm list packages after install:"
   "${ADB[@]}" shell pm list packages | head -30
