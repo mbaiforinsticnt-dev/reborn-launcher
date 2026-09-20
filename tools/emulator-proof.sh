@@ -55,11 +55,14 @@ anr_sweep() {
   [ -f "$NOSWEEP" ] && return 0
   WIN=$("${ADB[@]}" shell "dumpsys window windows" 2>/dev/null | tr -d '\r') || return 0
   echo "$WIN" | grep -qi "Not Responding" || return 0
-  PKG=$(echo "$WIN" | grep -oiE "(Not Responding|Application Error): *[a-zA-Z0-9._]+" | head -1 | sed -E 's/.*: *//')
+  # NB: never reuse $PKG here - this watchdog runs in the same shell as the
+  # proof script and clobbering PKG retargets every later launch at the
+  # ANR'd package (proven: am start went to com.android.systemui/.MainActivity).
+  ANRPKG=$(echo "$WIN" | grep -oiE "(Not Responding|Application Error): *[a-zA-Z0-9._]+" | head -1 | sed -E 's/.*: *//')
   # Never kill system-critical packages: killing settings/systemui mid-boot
   # crashes system_server and takes the package service down with it (seen
   # as "Can't find service: package" at install). Those get the Wait tap only.
-  case "$PKG" in
+  case "$ANRPKG" in
     system|system_server)
       # A wedged system_server never recovers on its own; killing it makes
       # the Android runtime restart (zygote respawns it). This IS the fix.
@@ -71,7 +74,7 @@ anr_sweep() {
     ""|android|com.android.systemui|com.android.settings|com.android.phone|com.android.providers*|com.android.server*)
       : ;;
     *)
-      pid=$("${ADB[@]}" shell pidof "$PKG" 2>/dev/null | tr -d '\r')
+      pid=$("${ADB[@]}" shell pidof "$ANRPKG" 2>/dev/null | tr -d '\r')
       [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" 2>/dev/null
       ;;
   esac
@@ -82,7 +85,7 @@ anr_sweep() {
   if echo "$WIN2" | grep -qi "Not Responding"; then
     "${ADB[@]}" shell input tap $((W * 50 / 100)) $((H * 55 / 100)) 2>/dev/null
   fi
-  echo "watchdog: swept ANR ($PKG)"
+  echo "watchdog: swept ANR ($ANRPKG)"
   sleep 2
   return 0
 }
