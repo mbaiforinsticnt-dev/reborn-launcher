@@ -105,8 +105,10 @@ public final class PhoneStore {
     public static boolean sendSms(String number, String text) {
         try {
             SmsManager.getDefault().sendTextMessage(number, null, text, null, null);
+            android.util.Log.i("Reborn", "sendSms ok to " + number);
             return true;
         } catch (Exception e) {
+            android.util.Log.e("Reborn", "sendSms failed to " + number, e);
             return false;
         }
     }
