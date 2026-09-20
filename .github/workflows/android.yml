@@ -75,6 +75,9 @@ jobs:
           git config user.email "reborn-ci@users.noreply.github.com"
           git add screenshots/*.png screenshots/proof-log.txt
           git commit -m "Add emulator proof screenshots" || exit 0
+          # CI setup writes local.properties etc. - an unstaged tree makes the
+          # rebase refuse to run. Everything we publish is already committed.
+          git reset --hard HEAD
           git fetch origin main
           git rebase -X theirs origin/main || { git rebase --abort; git reset --soft origin/main; git add screenshots/*.png screenshots/proof-log.txt; git commit -m "Add emulator proof screenshots"; }
           git push
