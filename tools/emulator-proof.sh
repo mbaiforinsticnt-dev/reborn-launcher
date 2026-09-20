@@ -104,7 +104,17 @@ emu_console() {
 
 echo "screen ${W}x${H}; keypad top $KT height $KH"
 
-"${ADB[@]}" install -r app/build/outputs/apk/debug/app-debug.apk
+INSTALL_OK=0
+for attempt in 1 2 3 4; do
+  "${ADB[@]}" wait-for-device
+  if "${ADB[@]}" install -r app/build/outputs/apk/debug/app-debug.apk; then
+    INSTALL_OK=1
+    break
+  fi
+  echo "DIAG: install attempt $attempt failed; waiting for package service and retrying"
+  sleep 12
+done
+[ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install failed after 4 attempts"; exit 1; }
 "${ADB[@]}" shell pm list packages | tr -d '\r' | grep "$PKG" || {
   echo "DIAG: $PKG not in pm list packages after install:"
   "${ADB[@]}" shell pm list packages | head -30
