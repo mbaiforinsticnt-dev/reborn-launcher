@@ -57,6 +57,14 @@ anr_sweep() {
   # crashes system_server and takes the package service down with it (seen
   # as "Can't find service: package" at install). Those get the Wait tap only.
   case "$PKG" in
+    system|system_server)
+      # A wedged system_server never recovers on its own; killing it makes
+      # the Android runtime restart (zygote respawns it). This IS the fix.
+      pid=$("${ADB[@]}" shell pidof system_server 2>/dev/null | tr -d '\r')
+      [ -n "$pid" ] && "${ADB[@]}" shell kill -9 "$pid" 2>/dev/null
+      echo "watchdog: system_server wedged - forced runtime restart"
+      sleep 15
+      ;;
     ""|android|com.android.systemui|com.android.settings|com.android.phone|com.android.providers*|com.android.server*)
       : ;;
     *)
@@ -137,6 +145,23 @@ echo "screen ${W}x${H}"
 wait_pkg_service() {
   for i in $(seq 1 30); do
     if "${ADB[@]}" shell service check package 2>/dev/null | tr -d '\r' | grep -q "found"; then
+      return 0
+    fi
+    sleep 5
+  done
+  # Service never came back: restart the Android runtime once (emulator is
+  # rooted; stop/start respawns zygote + system_server), then poll again.
+  echo "DIAG: package service lost - restarting Android runtime"
+  "${ADB[@]}" root >/dev/null 2>&1 || true
+  sleep 2
+  "${ADB[@]}" shell stop >/dev/null 2>&1 || true
+  sleep 5
+  "${ADB[@]}" shell start >/dev/null 2>&1 || true
+  "${ADB[@]}" wait-for-device
+  for i in $(seq 1 40); do
+    BC=$("${ADB[@]}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+    if [ "$BC" = "1" ] && "${ADB[@]}" shell service check package 2>/dev/null | tr -d '\r' | grep -q "found"; then
+      echo "DIAG: runtime restart recovered package service"
       return 0
     fi
     sleep 5
