@@ -147,11 +147,11 @@ public class OnScreenKeypad extends View {
             c.drawRoundRect(k.rect, radius, radius, p);
             p.setColor(k == pressed ? Color.WHITE : k.fg);
             p.setTextAlign(Paint.Align.CENTER);
-            p.setTextSize(k.rect.height() * 0.42f);
+            p.setTextSize(k.rect.height() * 0.50f);
             float baseline = k.rect.centerY() + p.getTextSize() * 0.35f - (k.sub.isEmpty() ? 0 : k.rect.height() * 0.10f);
             c.drawText(k.label, k.rect.centerX(), baseline, p);
             if (!k.sub.isEmpty()) {
-                p.setTextSize(k.rect.height() * 0.20f);
+                p.setTextSize(k.rect.height() * 0.28f);
                 c.drawText(k.sub, k.rect.centerX(), k.rect.centerY() + k.rect.height() * 0.38f, p);
             }
         }
