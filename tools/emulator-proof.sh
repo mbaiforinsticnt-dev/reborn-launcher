@@ -284,8 +284,18 @@ tap_key D1; sleep 1
 tap_key D2; sleep 1
 tap_key D3; sleep 1; shot 06-dialer
 tap_key CALL; sleep 3; shot 07-dial-bridge
-"${ADB[@]}" shell input keyevent KEYCODE_BACK
-sleep 2
+
+# The bridge hands foreground to the stock dialer; a single BACK keyevent is
+# not a reliable return (proven: later taps dialed 123 for real inside the
+# stock dialer). Re-foreground our launcher explicitly instead.
+fg_ours() {
+  "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
+  sleep 4
+  FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
+  echo "DIAG foreground: $FG"
+  echo "$FG" | grep -q "$PKG"
+}
+fg_ours || { echo "DIAG: launcher not foreground after dial bridge - aborting"; exit 1; }
 
 # Real inbound call through the emulator modem. The incoming-call UI is the
 # stock AVD dialer; the watchdog's ANR kill/tap can dismiss it, so sweeping
@@ -298,6 +308,10 @@ emu_console 'gsm cancel +15557654321'
 sleep 2
 rm -f "$NOSWEEP"
 sleep 2
+fg_ours || { echo "DIAG: launcher not foreground after incoming call - aborting"; exit 1; }
+# defensive: hang up any stray call before navigating
+"${ADB[@]}" shell input keyevent KEYCODE_ENDCALL || true
+sleep 1
 
 # Call log: missed call from the modem must be listed.
 tap_key END; sleep 1
