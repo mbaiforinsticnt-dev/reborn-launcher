@@ -120,6 +120,13 @@ public class NokiaUi extends View {
             invalidate();
             return true;
         }
+        if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT && screen == Screen.IDLE) {
+            rows = actions.contacts();
+            row = 0;
+            screen = Screen.CONTACTS;
+            invalidate();
+            return true;
+        }
         if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
             back();
             invalidate();
@@ -410,85 +417,182 @@ public class NokiaUi extends View {
         return new SimpleDateFormat("EEE d MMM", Locale.UK).format(new Date());
     }
 
+    // ------------------------------------------------------------------
+    // Reborn v4.89 skin: tokens lifted from the frozen c2-reborn source
+    // (index.html v4.89 final-release). Reference frame: 240x320 LCD -
+    // status 26px, screen 258px, soft bar 36px. Scaled to this canvas.
+    // ------------------------------------------------------------------
+    private static final int COL_STATUS_BG = Color.parseColor("#050708");
+    private static final int COL_SOFT_BG = Color.parseColor("#020304");
+    private static final int COL_SCREEN_BG = Color.parseColor("#252728");
+    private static final int COL_TITLE_BG = Color.parseColor("#77A9C1");
+    private static final int COL_SUB = Color.parseColor("#CCCCCC");
+    private static final int COL_HOME_TEXT = Color.parseColor("#078DF0");
+    private static final int COL_READ_BG = Color.parseColor("#F4F4F4");
+    private static final int COL_READ_FG = Color.parseColor("#111111");
+    private static final int COL_ACCENT = Color.parseColor("#43BEE9");
+
+    private float statusH(int h) { return h * 0.08125f; }
+    private float softTop(int h) { return h * 0.8875f; }
+    private float screenH(int h) { return softTop(h) - statusH(h); }
+
     private void drawScreenBackground(Canvas c, int w, int h) {
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.WHITE);
+        p.setColor(COL_SCREEN_BG);
         c.drawRect(0, 0, w, h, p);
     }
 
     private void drawStatus(Canvas c, int w) {
-        p.setTextSize(w * 0.038f);
-        p.setColor(Color.parseColor("#666666"));
-        p.setTextAlign(Paint.Align.LEFT);
-        c.drawText(timeLabel(), w * 0.04f, w * 0.06f, p);
-        int batt = actions.batteryPercent();
-        if (batt >= 0) {
-            p.setTextAlign(Paint.Align.RIGHT);
-            c.drawText(batt + "%", w * 0.96f, w * 0.06f, p);
+        float sh = statusH(getHeight());
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(COL_STATUS_BG);
+        c.drawRect(0, 0, w, sh, p);
+        p.setColor(Color.WHITE);
+        // Signal glyph: four ascending bars (v4.89 status asset look).
+        float base = sh * 0.78f;
+        float bw = w * 0.018f;
+        for (int b = 0; b < 4; b++) {
+            float bh = sh * (0.22f + 0.14f * b);
+            float x0 = w * 0.025f + b * bw * 1.45f;
+            c.drawRect(x0, base - bh, x0 + bw, base, p);
         }
+        // Battery glyph with live fill level.
+        int batt = actions.batteryPercent();
+        float bx = w * 0.135f, by = sh * 0.26f, bwid = w * 0.075f, bhei = sh * 0.48f;
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(sh * 0.06f);
+        c.drawRect(bx, by, bx + bwid, by + bhei, p);
+        c.drawRect(bx + bwid, by + bhei * 0.3f, bx + bwid + w * 0.008f, by + bhei * 0.7f, p);
+        if (batt >= 0) {
+            p.setStyle(Paint.Style.FILL);
+            float pad = sh * 0.08f;
+            float fill = (bwid - 2 * pad) * Math.max(0, Math.min(100, batt)) / 100f;
+            c.drawRect(bx + pad, by + pad, bx + pad + fill, by + bhei - pad, p);
+        }
+        // Time, right-aligned, condensed narrow face.
+        p.setStyle(Paint.Style.FILL);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextSize(sh * 0.62f);
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText(timeLabel(), w * 0.965f, sh * 0.72f, p);
         p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
     }
 
     private void drawIdle(Canvas c, int w, int h) {
-        p.setTextSize(w * 0.2f);
-        p.setColor(Color.parseColor("#2D5EA8"));
-        p.setTextAlign(Paint.Align.CENTER);
-        c.drawText(timeLabel(), w * 0.5f, h * 0.28f, p);
-        p.setTextSize(w * 0.055f);
-        c.drawText(dateLabel(), w * 0.5f, h * 0.36f, p);
+        float top = statusH(h), bot = softTop(h);
+        // v4.89 home wallpaper: 160deg linear gradient + radial highlight.
+        android.graphics.LinearGradient lg = new android.graphics.LinearGradient(
+                0, top, w, bot,
+                new int[]{Color.parseColor("#D7E2F6"), Color.parseColor("#B6CBEA"),
+                          Color.parseColor("#6F96CD"), Color.parseColor("#325F9E")},
+                new float[]{0f, 0.37f, 0.68f, 1f}, android.graphics.Shader.TileMode.CLAMP);
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(lg);
+        c.drawRect(0, top, w, bot, p);
+        android.graphics.RadialGradient rg = new android.graphics.RadialGradient(
+                w * 0.64f, top + (bot - top) * 0.30f, (bot - top) * 0.34f,
+                Color.argb(107, 155, 190, 239), Color.TRANSPARENT,
+                android.graphics.Shader.TileMode.CLAMP);
+        p.setShader(rg);
+        c.drawRect(0, top, w, bot, p);
+        p.setShader(null);
 
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setColor(COL_HOME_TEXT);
+        // Clock top-right (24px at 240 width).
+        p.setTextSize(w * 0.10f);
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText(timeLabel(), w * 0.9625f, top + (bot - top) * 0.039f + w * 0.085f, p);
+        // Carrier top-left, date below (12px at 240 width).
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTextSize(w * 0.05f);
+        String carrier = carrierName();
+        float ty = top + (bot - top) * 0.039f + w * 0.045f;
+        if (!carrier.isEmpty()) {
+            c.drawText(carrier, w * 0.042f, ty, p);
+            ty += w * 0.062f;
+        }
+        c.drawText(new SimpleDateFormat("EEE dd-MM-yyyy", Locale.UK).format(new Date()), w * 0.042f, ty, p);
+
+        // S40-style idle notification: small light box, only when there is one.
         int missed = actions.missedCalls();
         int unread = actions.unreadSms();
-        float top = h * 0.52f;
-        float bottom = h * 0.80f;
-        p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.parseColor("#2D5EA8"));
-        c.drawRoundRect(w * 0.06f, top, w * 0.94f, bottom, 28f, 28f, p);
-        p.setColor(Color.WHITE);
-        p.setTextSize(w * 0.05f);
-        if (missed == 0 && unread == 0) {
-            c.drawText("No new notifications", w * 0.5f, (top + bottom) / 2f + w * 0.018f, p);
-        } else {
-            float y = top + h * 0.09f;
-            if (missed > 0) {
-                c.drawText(missed + (missed == 1 ? " missed call" : " missed calls"), w * 0.5f, y, p);
-                y += h * 0.08f;
-            }
-            if (unread > 0) {
-                c.drawText(unread + (unread == 1 ? " new message" : " new messages"), w * 0.5f, y, p);
+        if (missed > 0 || unread > 0) {
+            List<String> lines = new ArrayList<>();
+            if (unread > 0) lines.add(unread + (unread == 1 ? " new message" : " new messages"));
+            if (missed > 0) lines.add(missed + (missed == 1 ? " missed call" : " missed calls"));
+            float boxW = w * 0.62f;
+            float boxH = w * 0.075f + lines.size() * w * 0.085f;
+            float bx = (w - boxW) / 2f;
+            float by = top + (bot - top) * 0.52f - boxH / 2f;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.WHITE);
+            c.drawRect(bx, by, bx + boxW, by + boxH, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(w * 0.004f);
+            p.setColor(Color.parseColor("#888888"));
+            c.drawRect(bx, by, bx + boxW, by + boxH, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(COL_READ_FG);
+            p.setTextAlign(Paint.Align.CENTER);
+            p.setTextSize(w * 0.058f);
+            float ly = by + w * 0.085f;
+            for (String line : lines) {
+                c.drawText(line, w * 0.5f, ly, p);
+                ly += w * 0.085f;
             }
         }
         p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    private String carrierName() {
+        try {
+            android.telephony.TelephonyManager tm = (android.telephony.TelephonyManager)
+                    getContext().getSystemService(Context.TELEPHONY_SERVICE);
+            if (tm != null) {
+                String n = tm.getNetworkOperatorName();
+                if (n != null && !n.trim().isEmpty()) return n.trim();
+            }
+        } catch (Exception ignored) { }
+        return "";
     }
 
     private void drawMenu(Canvas c, int w, int h) {
-        drawTitle(c, w, "Menu");
-        float gridTop = h * 0.12f;
-        float gridHeight = h * 0.76f;
+        drawTitle(c, w, h, "Menu");
+        float gridTop = statusH(h) + titleH(h);
+        float gridHeight = softTop(h) - gridTop;
         float cellH = gridHeight / 3f;
         float cellW = w / 3f;
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         for (int i = 0; i < MENU_ITEMS.length; i++) {
             float cx = (i % 3) * cellW + cellW / 2f;
             float cy = (i / 3) * cellH + gridTop + cellH / 2f;
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(i == selected ? Color.parseColor("#2D5EA8") : Color.parseColor("#F0F0F0"));
-            c.drawRoundRect(cx - cellW * 0.42f, cy - cellH * 0.34f, cx + cellW * 0.42f, cy + cellH * 0.34f, 24f, 24f, p);
-            p.setColor(i == selected ? Color.WHITE : Color.BLACK);
-            p.setTextSize(w * 0.045f);
+            if (i == selected) {
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(Color.WHITE);
+                c.drawRect(cx - cellW * 0.46f, cy - cellH * 0.30f, cx + cellW * 0.46f, cy + cellH * 0.30f, p);
+            }
+            p.setColor(i == selected ? Color.BLACK : Color.WHITE);
+            p.setTextSize(w * 0.079f);
             p.setTextAlign(Paint.Align.CENTER);
-            c.drawText(MENU_ITEMS[i], cx, cy + w * 0.016f, p);
+            c.drawText(MENU_ITEMS[i], cx, cy + w * 0.028f, p);
         }
         p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
     }
 
+    private float titleH(int h) { return screenH(h) * 0.097f; }
+
     private void drawList(Canvas c, int w, int h) {
-        drawTitle(c, w, LIST_TITLES[listSection]);
+        drawTitle(c, w, h, LIST_TITLES[listSection]);
         String[] items = LIST_ITEMS[listSection];
         drawItemRows(c, w, h, items.length, i -> items[i], null);
     }
 
     private void drawThreads(Canvas c, int w, int h) {
-        drawTitle(c, w, "Conversations");
+        drawTitle(c, w, h, "Conversations");
         if (threads.isEmpty()) {
             drawEmpty(c, w, h, "No conversations");
             return;
@@ -506,66 +610,96 @@ public class NokiaUi extends View {
     private void drawRead(Canvas c, int w, int h) {
         if (threads.isEmpty()) return;
         PhoneStore.Sms m = threads.get(readIndex);
-        drawTitle(c, w, m.address);
-        float y = h * 0.18f;
+        drawTitle(c, w, h, m.address);
+        float top = statusH(h) + titleH(h);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        float y = top + screenH(h) * 0.055f;
         p.setTextAlign(Paint.Align.LEFT);
-        p.setColor(Color.parseColor("#666666"));
-        p.setTextSize(w * 0.042f);
-        c.drawText(m.directionLabel() + "  " + m.dateLabel(), w * 0.06f, y, p);
-        y += h * 0.06f;
-        p.setColor(Color.BLACK);
-        p.setTextSize(w * 0.05f);
-        y = drawWrapped(c, m.body == null ? "" : m.body, w * 0.06f, w * 0.88f, y, w * 0.062f);
-        y += h * 0.04f;
-        p.setColor(Color.parseColor("#666666"));
-        p.setTextSize(w * 0.042f);
-        c.drawText("Centre: reply   Call key: call this number", w * 0.06f, y, p);
+        p.setColor(COL_SUB);
+        p.setTextSize(w * 0.058f);
+        c.drawText(m.directionLabel() + "  " + m.dateLabel(), w * 0.033f, y, p);
+        // v4.89 read box: light panel with dark text.
+        float boxTop = y + screenH(h) * 0.03f;
+        float boxBot = softTop(h) - screenH(h) * 0.04f;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(COL_READ_BG);
+        c.drawRect(w * 0.033f, boxTop, w * 0.967f, boxBot, p);
+        p.setColor(COL_READ_FG);
+        p.setTextSize(w * 0.071f);
+        android.graphics.Rect clip = new android.graphics.Rect(
+                (int) (w * 0.033f), (int) boxTop, (int) (w * 0.967f), (int) boxBot);
+        c.save();
+        c.clipRect(clip);
+        drawWrapped(c, m.body == null ? "" : m.body, w * 0.075f, w * 0.85f, boxTop + w * 0.075f, w * 0.083f);
+        c.restore();
+        p.setTypeface(Typeface.DEFAULT);
     }
 
     private void drawCompose(Canvas c, int w, int h) {
-        drawTitle(c, w, "New message");
-        float y = h * 0.20f;
+        drawTitle(c, w, h, "New message");
+        float top = statusH(h) + titleH(h);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         p.setTextAlign(Paint.Align.LEFT);
-        p.setColor(Color.parseColor("#666666"));
-        p.setTextSize(w * 0.042f);
-        c.drawText("To:", w * 0.06f, y, p);
-        p.setColor(Color.BLACK);
-        p.setTextSize(w * 0.055f);
-        c.drawText(composeNumber.toString(), w * 0.16f, y, p);
+        float y = top + screenH(h) * 0.08f;
+        p.setColor(COL_SUB);
+        p.setTextSize(w * 0.058f);
+        c.drawText("To:", w * 0.042f, y, p);
+        // Light text field like the v4.89 editor.
+        drawField(c, w, y + screenH(h) * 0.02f, composeNumber.toString(), screenH(h) * 0.10f);
+        y += screenH(h) * 0.16f;
         if (screen == Screen.COMPOSE_TEXT) {
-            y += h * 0.08f;
-            p.setColor(Color.parseColor("#666666"));
-            p.setTextSize(w * 0.042f);
-            c.drawText("Message:", w * 0.06f, y, p);
-            y += h * 0.06f;
-            p.setColor(Color.BLACK);
-            p.setTextSize(w * 0.05f);
-            drawWrapped(c, composeTap.preview(), w * 0.06f, w * 0.88f, y, w * 0.062f);
+            p.setColor(COL_SUB);
+            p.setTextSize(w * 0.058f);
+            c.drawText("Message:", w * 0.042f, y, p);
+            float fTop = y + screenH(h) * 0.02f;
+            float fH = screenH(h) * 0.38f;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(COL_READ_BG);
+            c.drawRect(w * 0.042f, fTop, w * 0.958f, fTop + fH, p);
+            p.setColor(COL_READ_FG);
+            p.setTextSize(w * 0.071f);
+            android.graphics.Rect clip = new android.graphics.Rect(
+                    (int) (w * 0.042f), (int) fTop, (int) (w * 0.958f), (int) (fTop + fH));
+            c.save();
+            c.clipRect(clip);
+            drawWrapped(c, composeTap.preview(), w * 0.075f, w * 0.85f, fTop + w * 0.075f, w * 0.083f);
+            c.restore();
             if (composeSent) {
-                p.setColor(Color.parseColor("#1E7A34"));
+                p.setColor(COL_ACCENT);
                 p.setTextAlign(Paint.Align.CENTER);
-                p.setTextSize(w * 0.05f);
-                c.drawText("Message sent", w * 0.5f, h * 0.75f, p);
+                p.setTextSize(w * 0.071f);
+                c.drawText("Message sent", w * 0.5f, fTop + fH + screenH(h) * 0.10f, p);
                 p.setTextAlign(Paint.Align.LEFT);
             }
         } else {
-            y += h * 0.08f;
-            p.setColor(Color.parseColor("#666666"));
-            p.setTextSize(w * 0.042f);
-            c.drawText("Type the number, then Centre", w * 0.06f, y, p);
+            p.setColor(COL_SUB);
+            p.setTextSize(w * 0.058f);
+            c.drawText("Type the number, then Centre", w * 0.042f, y, p);
         }
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    private void drawField(Canvas c, int w, float top, String text, float height) {
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(COL_READ_BG);
+        c.drawRect(w * 0.042f, top, w * 0.958f, top + height, p);
+        p.setColor(COL_READ_FG);
+        p.setTextSize(w * 0.079f);
+        c.drawText(text, w * 0.075f, top + height * 0.68f, p);
     }
 
     private void drawDialer(Canvas c, int w, int h) {
-        drawTitle(c, w, "Dial");
+        drawTitle(c, w, h, "Dial");
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         p.setTextAlign(Paint.Align.CENTER);
-        p.setColor(Color.BLACK);
+        p.setColor(Color.WHITE);
         p.setTextSize(w * 0.11f);
-        c.drawText(dialNumber.toString(), w * 0.5f, h * 0.42f, p);
-        p.setColor(Color.parseColor("#666666"));
-        p.setTextSize(w * 0.045f);
-        c.drawText("Green key to call", w * 0.5f, h * 0.54f, p);
+        c.drawText(dialNumber.toString(), w * 0.5f, statusH(h) + screenH(h) * 0.45f, p);
+        p.setColor(COL_SUB);
+        p.setTextSize(w * 0.058f);
+        c.drawText("Green key to call", w * 0.5f, statusH(h) + screenH(h) * 0.58f, p);
         p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
     }
 
     private void drawRows(Canvas c, int w, int h) {
@@ -573,7 +707,7 @@ public class NokiaUi extends View {
         if (screen == Screen.CALLLOG && !rows.isEmpty() && rows.get(0).length > 1 && rows.get(0)[0].equals("Not available")) {
             title = "Radio";
         }
-        drawTitle(c, w, title);
+        drawTitle(c, w, h, title);
         if (rows.isEmpty()) {
             drawEmpty(c, w, h, screen == Screen.CONTACTS ? "No contacts" : "No calls yet");
             return;
@@ -586,38 +720,53 @@ public class NokiaUi extends View {
     private interface LabelAt { String get(int i); }
 
     private void drawItemRows(Canvas c, int w, int h, int count, LabelAt main, LabelAt sub) {
-        float listTop = h * 0.13f;
-        float listHeight = h * 0.75f;
+        float listTop = statusH(h) + titleH(h);
+        float listHeight = softTop(h) - listTop;
         int visible = Math.min(count, 6);
         float rowH = listHeight / 6f;
         int first = Math.max(0, Math.min(row - 2, count - visible));
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         for (int i = 0; i < visible; i++) {
             int idx = first + i;
             float top = listTop + i * rowH;
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(idx == row ? Color.parseColor("#2D5EA8") : Color.parseColor(idx % 2 == 0 ? "#FFFFFF" : "#F7F7F7"));
-            c.drawRect(0, top, w, top + rowH, p);
+            if (idx == row) {
+                // v4.89 selection: full inversion, white row with black text.
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(Color.WHITE);
+                c.drawRect(0, top, w, top + rowH, p);
+            }
             p.setTextAlign(Paint.Align.LEFT);
-            p.setColor(idx == row ? Color.WHITE : Color.BLACK);
-            p.setTextSize(w * 0.05f);
-            p.setFakeBoldText(false);
-            c.drawText(main.get(idx), w * 0.06f, top + rowH * 0.42f, p);
+            p.setColor(idx == row ? Color.BLACK : Color.WHITE);
+            p.setTextSize(w * 0.079f);
+            c.drawText(main.get(idx), w * 0.042f, top + rowH * 0.44f, p);
             if (sub != null) {
                 String s = sub.get(idx);
                 if (s != null && !s.isEmpty()) {
-                    p.setTextSize(w * 0.038f);
-                    p.setColor(idx == row ? Color.parseColor("#D9E4F5") : Color.parseColor("#777777"));
-                    c.drawText(s, w * 0.06f, top + rowH * 0.78f, p);
+                    p.setTextSize(w * 0.058f);
+                    p.setColor(idx == row ? Color.parseColor("#444444") : COL_SUB);
+                    c.drawText(s, w * 0.042f, top + rowH * 0.80f, p);
                 }
             }
         }
+        // v4.89 scrollbar: right-edge segments when the list overflows.
+        if (count > visible) {
+            float trackTop = listTop + listHeight * 0.05f;
+            float trackH = listHeight * 0.90f;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#EEEEEE"));
+            c.drawRect(w - w * 0.008f, trackTop, w, trackTop + trackH, p);
+            float segH = trackH * visible / (float) count;
+            float segTop = trackTop + (trackH - segH) * first / (float) (count - visible);
+            c.drawRect(w - w * 0.016f, segTop, w, segTop + segH, p);
+        }
+        p.setTypeface(Typeface.DEFAULT);
     }
 
     private void drawEmpty(Canvas c, int w, int h, String text) {
         p.setTextAlign(Paint.Align.CENTER);
-        p.setColor(Color.parseColor("#777777"));
-        p.setTextSize(w * 0.05f);
-        c.drawText(text, w * 0.5f, h * 0.5f, p);
+        p.setColor(COL_SUB);
+        p.setTextSize(w * 0.071f);
+        c.drawText(text, w * 0.5f, statusH(h) + screenH(h) * 0.5f, p);
         p.setTextAlign(Paint.Align.LEFT);
     }
 
@@ -639,42 +788,51 @@ public class NokiaUi extends View {
         return y + lineH;
     }
 
-    private void drawTitle(Canvas c, int w, String title) {
+    private void drawTitle(Canvas c, int w, int h, String title) {
+        float top = statusH(h);
+        float th = titleH(h);
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.parseColor("#F5F5F5"));
-        c.drawRect(0, 0, w, w * 0.11f, p);
-        p.setTextSize(w * 0.052f);
-        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-        p.setColor(Color.parseColor("#1A1A1A"));
-        p.setTextAlign(Paint.Align.CENTER);
-        c.drawText(title, w * 0.5f, w * 0.074f, p);
-        p.setTypeface(Typeface.DEFAULT);
+        p.setColor(COL_TITLE_BG);
+        c.drawRect(0, top, w, top + th, p);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextSize(w * 0.079f);
+        p.setColor(Color.WHITE);
         p.setTextAlign(Paint.Align.LEFT);
+        c.drawText(title, w * 0.02f, top + th * 0.72f, p);
+        p.setTypeface(Typeface.DEFAULT);
     }
 
     private void drawSoftkeys(Canvas c, int w, int h) {
-        float top = h * 0.92f;
+        float top = softTop(h);
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.parseColor("#EFEFEF"));
+        p.setColor(COL_SOFT_BG);
         c.drawRect(0, top, w, h, p);
-        p.setTextSize(w * 0.05f);
-        p.setColor(Color.parseColor("#1A1A1A"));
+        String[] labels = softLabels();
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        p.setTextSize((h - top) * 0.48f);
+        p.setColor(Color.WHITE);
+        float baseline = top + (h - top) * 0.66f;
         p.setTextAlign(Paint.Align.LEFT);
-        c.drawText(leftSoftLabel(), w * 0.05f, top + (h - top) * 0.62f, p);
+        c.drawText(labels[0], w * 0.02f, baseline, p);
+        p.setTextAlign(Paint.Align.CENTER);
+        c.drawText(labels[1], w * 0.5f, baseline, p);
         p.setTextAlign(Paint.Align.RIGHT);
-        c.drawText("Back", w * 0.95f, top + (h - top) * 0.62f, p);
+        c.drawText(labels[2], w * 0.98f, baseline, p);
         p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
     }
 
-    private String leftSoftLabel() {
+    // S40 triple softkey labels: left | centre (navi action) | right.
+    private String[] softLabels() {
         switch (screen) {
-            case IDLE: return "Menu";
-            case MENU: case LIST: case THREADS: case CALLLOG: case CONTACTS: return "Select";
-            case READ: return "Reply";
-            case COMPOSE_NUMBER: return "Next";
-            case COMPOSE_TEXT: return "Send";
-            case DIALER: return "Call";
-            default: return "";
+            case IDLE: return new String[]{"Menu", "Menu", "Names"};
+            case MENU: case LIST: return new String[]{"", "Select", "Back"};
+            case THREADS: return new String[]{"", "Open", "Back"};
+            case READ: return new String[]{"", "Reply", "Back"};
+            case COMPOSE_NUMBER: return new String[]{"", "Next", "Back"};
+            case COMPOSE_TEXT: return new String[]{"", "Send", "Back"};
+            case DIALER: case CALLLOG: case CONTACTS: return new String[]{"", "Call", "Back"};
+            default: return new String[]{"", "", "Back"};
         }
     }
 }
