@@ -47,11 +47,13 @@ public class OnScreenKeypad extends View {
     private Key pressed;
     private KeySink sink;
 
-    private static final int KEY_BG = Color.parseColor("#E4E4E4");
-    private static final int KEY_FG = Color.parseColor("#1A1A1A");
+    private static final int KEY_BG = Color.parseColor("#171A1A");
+    private static final int KEY_FG = Color.parseColor("#43BEE9");
+    private static final int NAVI_BG = Color.parseColor("#E1E3E3");
+    private static final int NAVI_FG = Color.parseColor("#1A1A1A");
     private static final int CALL_BG = Color.parseColor("#2E9E4F");
     private static final int END_BG = Color.parseColor("#D32F2F");
-    private static final int PRESSED_BG = Color.parseColor("#2D5EA8");
+    private static final int PRESSED_BG = Color.parseColor("#43BEE9");
 
     // Column boundaries as fractions of the keypad width: three columns with
     // wide gutters so neighbouring buttons can never share a touch.
@@ -70,12 +72,12 @@ public class OnScreenKeypad extends View {
     private void buildKeys() {
         keys.add(new Key(KeyEvent.KEYCODE_SOFT_LEFT, "Menu", "", KEY_BG, KEY_FG));
         keys.add(new Key(KeyEvent.KEYCODE_SOFT_RIGHT, "Back", "", KEY_BG, KEY_FG));
-        keys.add(new Key(KeyEvent.KEYCODE_DPAD_UP, "\u25B2", "", KEY_BG, KEY_FG));
-        keys.add(new Key(KeyEvent.KEYCODE_DPAD_LEFT, "\u25C0", "", KEY_BG, KEY_FG));
-        keys.add(new Key(KeyEvent.KEYCODE_DPAD_CENTER, "OK", "", KEY_BG, KEY_FG));
-        keys.add(new Key(KeyEvent.KEYCODE_DPAD_RIGHT, "\u25B6", "", KEY_BG, KEY_FG));
+        keys.add(new Key(KeyEvent.KEYCODE_DPAD_UP, "\u25B2", "", NAVI_BG, NAVI_FG));
+        keys.add(new Key(KeyEvent.KEYCODE_DPAD_LEFT, "\u25C0", "", NAVI_BG, NAVI_FG));
+        keys.add(new Key(KeyEvent.KEYCODE_DPAD_CENTER, "OK", "", NAVI_BG, NAVI_FG));
+        keys.add(new Key(KeyEvent.KEYCODE_DPAD_RIGHT, "\u25B6", "", NAVI_BG, NAVI_FG));
         keys.add(new Key(KeyEvent.KEYCODE_CALL, "\u2713", "", CALL_BG, Color.WHITE));
-        keys.add(new Key(KeyEvent.KEYCODE_DPAD_DOWN, "\u25BC", "", KEY_BG, KEY_FG));
+        keys.add(new Key(KeyEvent.KEYCODE_DPAD_DOWN, "\u25BC", "", NAVI_BG, NAVI_FG));
         keys.add(new Key(KeyEvent.KEYCODE_ENDCALL, "\u2715", "", END_BG, Color.WHITE));
         keys.add(new Key(KeyEvent.KEYCODE_1, "1", ".,", KEY_BG, KEY_FG));
         keys.add(new Key(KeyEvent.KEYCODE_2, "2", "abc", KEY_BG, KEY_FG));
@@ -135,7 +137,7 @@ public class OnScreenKeypad extends View {
         int w = getWidth();
         int h = getHeight();
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.parseColor("#20242A"));
+        p.setColor(Color.parseColor("#0A0C0E"));
         c.drawRect(0, 0, w, h, p);
         for (Key k : keys) {
             if (k.rect == null) continue;
