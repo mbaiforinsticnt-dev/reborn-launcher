@@ -114,12 +114,9 @@ public class NokiaUi extends View {
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT) {
-            switch (screen) {
-                case IDLE: screen = Screen.MENU; selected = 0; row = 0; break;
-                case MENU: case LIST: case THREADS: case CALLLOG: case CONTACTS:
-                    selectCurrent(); break;
-                default: break;
-            }
+            // The left softkey label names the screen's primary action
+            // ("Next"/"Send"/"Reply"/"Call"), so it must fire it everywhere.
+            selectCurrent();
             invalidate();
             return true;
         }
@@ -176,7 +173,7 @@ public class NokiaUi extends View {
             case COMPOSE_TEXT:
                 handler.removeCallbacks(commitTick);
                 composeTap.press(d);
-                handler.postDelayed(commitTick, 1100);
+                handler.postDelayed(commitTick, 1600);
                 break;
             default: break;
         }
