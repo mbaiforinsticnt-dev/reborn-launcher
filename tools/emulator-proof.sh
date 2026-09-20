@@ -436,17 +436,13 @@ read -r D4X D4Y < <(tapf $D4)
 # Even within one adb shell, each 'input tap' spawn costs >1.1s on this
 # emulator (proven: sequential in-shell taps still read "ggggg"). Run the
 # same-key presses CONCURRENTLY so both land inside the 1100ms window.
-if [ -n "$RAWDEV" ]; then
-  "${ADB[@]}" shell "$(raw_seq $D4X $D4Y); sleep 0.3; $(raw_seq $D4X $D4Y)"
-  sleep 2
-  "${ADB[@]}" shell "$(raw_seq $D4X $D4Y); sleep 0.3; $(raw_seq $D4X $D4Y); sleep 0.3; $(raw_seq $D4X $D4Y)"
-  sleep 2
-else
-  "${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
-  sleep 2
-  "${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
-  sleep 2
-fi
+# Concurrent 'input tap' spawns land presses inside the app's multitap window
+# (now 1600ms; raw sendevent to /dev/input/event* produced no tap at all on
+# this image - proven: empty message field with the device detected).
+"${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
+sleep 2
+"${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
+sleep 2
 shot 11-compose-text
 # Send is the left softkey on the compose screen, not CENTER. Decisive taps
 # get lost under emulator load; retry until the frame actually changes.
