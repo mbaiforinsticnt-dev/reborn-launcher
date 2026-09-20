@@ -116,7 +116,7 @@ emu_console() {
   { sleep 1; echo "auth $TOKEN"; sleep 1; echo "$1"; sleep 2; } | timeout 10 nc localhost 5554 >/dev/null 2>&1 || true
 }
 
-echo "screen ${W}x${H}; keypad top $KT height $KH"
+echo "screen ${W}x${H}"
 
 INSTALL_OK=0
 for attempt in 1 2 3 4; do
@@ -200,6 +200,7 @@ PY
   sleep 3
 done
 [ -n "$KT" ] && [ -n "$KH" ] || { echo "DIAG: could not detect keypad geometry"; exit 1; }
+echo "keypad top $KT height $KH"
 
 shot 01-idle-keypad
 
