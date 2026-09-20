@@ -156,11 +156,19 @@ for perm in CALL_PHONE READ_CONTACTS READ_CALL_LOG READ_SMS SEND_SMS; do
   "${ADB[@]}" shell pm grant "$PKG" "android.permission.$perm"
 done
 
-"${ADB[@]}" shell am start -n "$PKG/.MainActivity"
-sleep 5
-FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
-echo "DIAG foreground: $FG"
-case "$FG" in *"$PKG"*) ;; *) echo "DIAG: launcher not foreground after am start - aborting"; exit 1 ;; esac
+# am start can itself hit a mid-restart system_server (proven: NPE in
+# ActivityStarter, exit 255); retry the launch until we are foreground.
+LAUNCH_OK=0
+for attempt in 1 2 3 4 5; do
+  "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
+  sleep 5
+  FG=$("${ADB[@]}" shell "dumpsys activity activities | grep -m1 ResumedActivity" | tr -d '\r')
+  echo "DIAG foreground: $FG"
+  case "$FG" in *"$PKG"*) LAUNCH_OK=1; break ;; esac
+  echo "DIAG: launcher not foreground (attempt $attempt); retrying"
+  sleep 4
+done
+[ "$LAUNCH_OK" = 1 ] || { echo "DIAG: launcher not foreground after am start retries - aborting"; exit 1; }
 # Keypad geometry from a real frame: PNG screencap decoded in pure python
 # (zlib + unfiltering). Keypad bg is dark slate, nav bar is pure black, and
 # the softkey strip above the keypad is near-white. (uiautomator can't see
