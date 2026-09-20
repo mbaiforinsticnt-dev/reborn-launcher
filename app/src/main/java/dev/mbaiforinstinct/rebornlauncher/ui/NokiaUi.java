@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, LIST, THREADS, READ, COMPOSE_NUMBER, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS
+        IDLE, MENU, LIST, THREADS, READ, COMPOSE_NUMBER, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, OPTIONS
     }
 
     public interface Actions {
@@ -81,6 +81,10 @@ public class NokiaUi extends View {
 
     private int selected = 0;
     private int row = 0;
+    // S40 Options popup state.
+    private String[] optionsItems = new String[0];
+    private int optionsSel = 0;
+    private Screen optionsFrom = Screen.IDLE;
     private int listSection = 0;
 
     private List<PhoneStore.Sms> threads = new ArrayList<>();
@@ -129,6 +133,7 @@ public class NokiaUi extends View {
             case DIALER: drawDialer(c, w, h); break;
             case CALLLOG:
             case CONTACTS: drawRows(c, w, h); break;
+            case OPTIONS: drawOptions(c, w, h); break;
         }
         drawSoftkeys(c, w, h);
     }
@@ -142,9 +147,13 @@ public class NokiaUi extends View {
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT) {
-            // The left softkey label names the screen's primary action
-            // ("Next"/"Send"/"Reply"/"Call"), so it must fire it everywhere.
-            selectCurrent();
+            if (screen == Screen.OPTIONS) {
+                selectCurrent(); // centre/OK equivalent while options open
+            } else if (optionsItemsFor(screen).length > 0) {
+                openOptions();
+            } else {
+                selectCurrent();
+            }
             invalidate();
             return true;
         }
@@ -281,6 +290,7 @@ public class NokiaUi extends View {
 
     private void back() {
         switch (screen) {
+            case OPTIONS: screen = optionsFrom; break;
             case MENU: screen = Screen.IDLE; row = 0; break;
             case LIST: screen = Screen.MENU; row = 0; break;
             case THREADS: case COMPOSE_NUMBER: screen = Screen.LIST; row = 0; break;
@@ -293,6 +303,10 @@ public class NokiaUi extends View {
     }
 
     private void move(int delta) {
+        if (screen == Screen.OPTIONS) {
+            if (optionsItems.length > 0) optionsSel = (optionsSel + delta + optionsItems.length) % optionsItems.length;
+            return;
+        }
         if (screen == Screen.MENU) {
             selected = (selected + delta * 3 + MENU_ITEMS.length) % MENU_ITEMS.length;
             return;
@@ -319,6 +333,9 @@ public class NokiaUi extends View {
 
     private void selectCurrent() {
         switch (screen) {
+            case OPTIONS:
+                activateOption();
+                break;
             case IDLE:
                 screen = Screen.MENU;
                 selected = 0;
@@ -893,6 +910,112 @@ public class NokiaUi extends View {
         p.setTypeface(Typeface.DEFAULT);
     }
 
+    private void activateOption() {
+        if (optionsItems.length == 0) { screen = optionsFrom; return; }
+        String item = optionsItems[optionsSel];
+        Screen from = optionsFrom;
+        screen = from;
+        switch (item) {
+            case "Open":
+                if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; screen = Screen.READ; }
+                break;
+            case "Select":
+                selectCurrent();
+                break;
+            case "Reply":
+                if (from == Screen.READ && !threads.isEmpty()) {
+                    composeNumber.setLength(0);
+                    composeNumber.append(threads.get(readIndex).address);
+                    composeTap.clear();
+                    screen = Screen.COMPOSE_NUMBER;
+                }
+                break;
+            case "Call": case "Call sender":
+                if (from == Screen.READ && !threads.isEmpty()) actions.dial(threads.get(readIndex).address);
+                else if (from == Screen.CALLLOG && !rows.isEmpty()) actions.dial(rows.get(row)[3]);
+                else if (from == Screen.CONTACTS && !rows.isEmpty()) actions.dial(rows.get(row)[1]);
+                else if (from == Screen.DIALER && dialNumber.length() > 0) { actions.dial(dialNumber.toString()); dialNumber.setLength(0); screen = Screen.IDLE; }
+                break;
+            case "Send message":
+                if (from == Screen.CONTACTS && !rows.isEmpty()) { composeNumber.setLength(0); composeNumber.append(rows.get(row)[1]); composeTap.clear(); screen = Screen.COMPOSE_NUMBER; }
+                else if (from == Screen.CALLLOG && !rows.isEmpty()) { composeNumber.setLength(0); composeNumber.append(rows.get(row)[3]); composeTap.clear(); screen = Screen.COMPOSE_NUMBER; }
+                break;
+            case "New message":
+                composeNumber.setLength(0);
+                composeTap.clear();
+                screen = Screen.COMPOSE_NUMBER;
+                break;
+            case "Clear":
+                if (from == Screen.DIALER) dialNumber.setLength(0);
+                break;
+            case "Save number": case "Contact details": case "Message details":
+            case "Forward": case "Delete": case "Delete conversation": case "Mark as read":
+            case "Main menu view":
+                // Not yet implemented behind the scenes; the C2 shows these in the
+                // list, so they are present for parity and safe to highlight.
+                break;
+            default:
+                break;
+        }
+        invalidate();
+    }
+
+    // Faithful S40 Options popup: black header with a live item count, white
+    // rows on the dark #111923 panel, inverted selection, right-edge scrollbar.
+    private void drawOptions(Canvas c, int w, int h) {
+        float top = statusH(h);
+        float bot = softTop(h);
+        // Panel background.
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#111923"));
+        c.drawRect(0, top, w, bot, p);
+        // Header.
+        float headH = w * 0.075f;
+        p.setColor(Color.BLACK);
+        c.drawRect(0, top, w, top + headH, p);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setColor(Color.WHITE);
+        p.setTextSize(w * 0.055f);
+        p.setTextAlign(Paint.Align.LEFT);
+        c.drawText("Options", w * 0.02f, top + headH * 0.70f, p);
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText((optionsItems.length == 0 ? 0 : optionsSel + 1) + "-" + optionsItems.length, w * 0.98f, top + headH * 0.70f, p);
+        // Rows.
+        float listTop = top + headH;
+        int count = optionsItems.length;
+        int visible = Math.min(count, 7);
+        float rowH = (bot - listTop) / 7f;
+        int first = Math.max(0, Math.min(optionsSel - 3, count - visible));
+        for (int i = 0; i < visible; i++) {
+            int idx = first + i;
+            float ry = listTop + i * rowH;
+            boolean sel = idx == optionsSel;
+            if (sel) {
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(Color.WHITE);
+                c.drawRect(0, ry, w, ry + rowH, p);
+            }
+            p.setColor(sel ? Color.BLACK : Color.WHITE);
+            p.setTextSize(w * 0.056f);
+            p.setTextAlign(Paint.Align.LEFT);
+            c.drawText(optionsItems[idx], w * 0.03f, ry + rowH * 0.62f, p);
+        }
+        // Scrollbar.
+        if (count > visible) {
+            float trackTop = listTop + (bot - listTop) * 0.04f;
+            float trackH = (bot - listTop) * 0.92f;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#EEEEEE"));
+            c.drawRect(w - w * 0.008f, trackTop, w, trackTop + trackH, p);
+            float segH = trackH * visible / (float) count;
+            float segTop = trackTop + (trackH - segH) * first / (float) (count - visible);
+            p.setColor(Color.WHITE);
+            c.drawRect(w - w * 0.016f, segTop, w, segTop + segH, p);
+        }
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
     private void drawSoftkeys(Canvas c, int w, int h) {
         float top = softTop(h);
         p.setStyle(Paint.Style.FILL);
@@ -914,16 +1037,39 @@ public class NokiaUi extends View {
     }
 
     // S40 triple softkey labels: left | centre (navi action) | right.
+    private String[] optionsItemsFor(Screen sc) {
+        switch (sc) {
+            case THREADS: return new String[]{"Open", "New message", "Delete conversation", "Mark as read"};
+            case READ: return new String[]{"Reply", "Call sender", "Forward", "Delete", "Message details"};
+            case CONTACTS: return new String[]{"Call", "Send message", "Contact details"};
+            case CALLLOG: return new String[]{"Call", "Send message", "Delete"};
+            case DIALER: return new String[]{"Call", "Save number", "Clear"};
+            case MENU: return new String[]{"Select", "Main menu view"};
+            default: return new String[0];
+        }
+    }
+
+    private void openOptions() {
+        String[] items = optionsItemsFor(screen);
+        if (items.length == 0) return;
+        optionsFrom = screen;
+        optionsItems = items;
+        optionsSel = 0;
+        screen = Screen.OPTIONS;
+        invalidate();
+    }
+
     private String[] softLabels() {
         switch (screen) {
             case IDLE: return new String[]{"Menu", "Menu", "Names"};
-            case MENU: case LIST: return new String[]{"", "Select", "Back"};
-            case THREADS: return new String[]{"", "Open", "Back"};
-            case READ: return new String[]{"", "Reply", "Back"};
+            case OPTIONS: return new String[]{"", "Select", "Back"};
+            case MENU: case LIST: return new String[]{screen == Screen.MENU ? "Options" : "", "Select", "Back"};
+            case THREADS: return new String[]{"Options", "Open", "Back"};
+            case READ: return new String[]{"Options", "Reply", "Back"};
             case COMPOSE_NUMBER: return new String[]{"", "Next", "Back"};
             case COMPOSE_TEXT: return new String[]{"", "Send", "Back"};
-            case DIALER: case CALLLOG: case CONTACTS: return new String[]{"", "Call", "Back"};
+            case DIALER: case CALLLOG: case CONTACTS: return new String[]{"Options", "Call", "Back"};
             default: return new String[]{"", "", "Back"};
         }
     }
-}
+        }
