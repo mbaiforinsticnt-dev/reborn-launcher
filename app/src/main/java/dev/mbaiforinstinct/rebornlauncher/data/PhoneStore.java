@@ -104,6 +104,93 @@ public final class PhoneStore {
         return out;
     }
 
+    public static boolean updateContact(Context c, String oldName, String oldNumber, String newName, String newNumber) {
+        try {
+            long phoneId = -1, rawId = -1;
+            String[] cols = {
+                    ContactsContract.CommonDataKinds.Phone._ID,
+                    ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID
+            };
+            try (Cursor cur = c.getContentResolver().query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI, cols,
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + "=? AND "
+                            + ContactsContract.CommonDataKinds.Phone.NUMBER + "=?",
+                    new String[]{oldName, oldNumber}, null)) {
+                if (cur != null && cur.moveToNext()) {
+                    phoneId = cur.getLong(0);
+                    rawId = cur.getLong(1);
+                }
+            }
+            if (phoneId < 0) return false;
+            java.util.ArrayList<android.content.ContentProviderOperation> ops = new java.util.ArrayList<>();
+            ops.add(android.content.ContentProviderOperation.newUpdate(ContactsContract.Data.CONTENT_URI)
+                    .withSelection(ContactsContract.Data.RAW_CONTACT_ID + "=? AND "
+                                    + ContactsContract.Data.MIMETYPE + "=?",
+                            new String[]{String.valueOf(rawId),
+                                    ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE})
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, newName)
+                    .build());
+            ops.add(android.content.ContentProviderOperation.newUpdate(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+                    .withSelection(ContactsContract.CommonDataKinds.Phone._ID + "=?",
+                            new String[]{String.valueOf(phoneId)})
+                    .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, newNumber)
+                    .build());
+            c.getContentResolver().applyBatch(ContactsContract.AUTHORITY, ops);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static boolean deleteContact(Context c, String name, String number) {
+        try {
+            long rawId = -1;
+            String[] cols = {ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID};
+            try (Cursor cur = c.getContentResolver().query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI, cols,
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + "=? AND "
+                            + ContactsContract.CommonDataKinds.Phone.NUMBER + "=?",
+                    new String[]{name, number}, null)) {
+                if (cur != null && cur.moveToNext()) rawId = cur.getLong(0);
+            }
+            if (rawId < 0) return false;
+            c.getContentResolver().delete(ContactsContract.RawContacts.CONTENT_URI,
+                    ContactsContract.RawContacts._ID + "=?", new String[]{String.valueOf(rawId)});
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static boolean insertContact(Context c, String name, String number) {
+        try {
+            java.util.ArrayList<android.content.ContentProviderOperation> ops = new java.util.ArrayList<>();
+            ops.add(android.content.ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                    .build());
+            ops.add(android.content.ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                    .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                    .withValue(ContactsContract.Data.MIMETYPE,
+                            ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, name)
+                    .build());
+            if (number != null && !number.isEmpty()) {
+                ops.add(android.content.ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                        .withValue(ContactsContract.Data.MIMETYPE,
+                                ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, number)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.TYPE,
+                                ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                        .build());
+            }
+            c.getContentResolver().applyBatch(ContactsContract.AUTHORITY, ops);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static boolean sendSms(String number, String text) {
         try {
             SmsManager.getDefault().sendTextMessage(number, null, text, null, null);
