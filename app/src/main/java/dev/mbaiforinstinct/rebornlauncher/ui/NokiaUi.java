@@ -231,6 +231,19 @@ public class NokiaUi extends View {
         }
     }
 
+    // MainActivity calls this when a background refresh has new data, so a
+    // visible list re-reads the cache (never the provider) and repaints.
+    public void dataChanged() {
+        if (screen == Screen.THREADS) {
+            threads = actions.sms();
+        } else if (screen == Screen.CALLLOG) {
+            rows = actions.callLog();
+        } else if (screen == Screen.CONTACTS) {
+            rows = actions.contacts();
+        }
+        invalidate();
+    }
+
     private void back() {
         switch (screen) {
             case MENU: screen = Screen.IDLE; row = 0; break;
