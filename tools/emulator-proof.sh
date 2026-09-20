@@ -27,36 +27,37 @@ for p in com.android.systemui com.android.settings; do
 done
 sleep 6
 
+
+read -r W H < <("${ADB[@]}" shell wm size | tr -d '\r' | sed -E 's/.*: ([0-9]+)x([0-9]+)/\1 \2/')
+[ -n "${W:-}" ] && [ -n "${H:-}" ]
+KT=$(( H * 55 / 100 ))
+
 # This image ANRs random system apps and the modal dialog eats every tap.
-# Watchdog: when an ANR window appears, kill the offending package so the
-# dialog dies with it. Runs until the proof ends.
+# Watchdog sweeps every 4s: kill the ANR'd package and tap "Wait" away.
+anr_sweep() {
+  WIN=$("${ADB[@]}" shell "dumpsys window windows" 2>/dev/null | tr -d '\r') || return 0
+  echo "$WIN" | grep -qi "Not Responding" || return 0
+  PKG=$(echo "$WIN" | grep -oiE "(Not Responding|Application Error): *[a-zA-Z0-9._]+" | head -1 | sed -E 's/.*: *//')
+  for p in $PKG com.android.systemui com.android.settings; do
+    [ -z "$p" ] && continue
+    pid=$("${ADB[@]}" shell pidof "$p" 2>/dev/null | tr -d '\r')
+    [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" 2>/dev/null
+  done
+  "${ADB[@]}" shell input tap $((W * 50 / 100)) $((H * 55 / 100)) 2>/dev/null
+  echo "watchdog: swept ANR ($PKG)"
+  sleep 3
+  return 0
+}
 anr_watchdog() {
+  set +e
   while :; do
-    WIN=$("${ADB[@]}" shell "dumpsys window windows" 2>/dev/null | tr -d '\r')
-    if echo "$WIN" | grep -qi "Not Responding"; then
-      PKG=$(echo "$WIN" | grep -oiE "Application (Not Responding|Error): [a-zA-Z0-9._]+" | head -1 | awk '{print $NF}')
-      if [ -n "$PKG" ]; then
-        pid=$("${ADB[@]}" shell pidof "$PKG" | tr -d '\r')
-        [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" || true
-        echo "watchdog: killed ANR'd $PKG"
-      else
-        for p in com.android.systemui com.android.settings; do
-          pid=$("${ADB[@]}" shell pidof "$p" | tr -d '\r')
-          [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" || true
-        done
-        echo "watchdog: killed systemui+settings (unparsed ANR)"
-      fi
-    fi
-    sleep 5
+    anr_sweep
+    sleep 4
   done
 }
 anr_watchdog &
 WATCHDOG=$!
 trap 'kill $WATCHDOG 2>/dev/null || true' EXIT
-
-read -r W H < <("${ADB[@]}" shell wm size | tr -d '\r' | sed -E 's/.*: ([0-9]+)x([0-9]+)/\1 \2/')
-[ -n "${W:-}" ] && [ -n "${H:-}" ]
-KT=$(( H * 55 / 100 ))
 KH=$(( H - KT ))
 
 tapf() {
@@ -83,6 +84,7 @@ tap_key() { # name from the constants above
 }
 
 shot() {
+  anr_sweep || true
   "${ADB[@]}" exec-out screencap -p > "$SCREEN_DIR/$1.png"
   python3 - "$SCREEN_DIR/$1.png" <<'PY'
 import struct, sys
