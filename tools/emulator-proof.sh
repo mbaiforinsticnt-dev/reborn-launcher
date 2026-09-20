@@ -327,6 +327,16 @@ PY
   sleep 4
 done
 [ -n "$KT" ] && [ -n "$KH" ] || { echo "DIAG: could not detect keypad geometry"; exit 1; }
+
+# Raw touchscreen device for timing-critical taps: 'input tap' spawns cost
+# >1s each on this emulator, which breaks multitap windows. sendevent
+# spawns are ~30ms, so same-key presses land within the app's window.
+RAWDEV=$("${ADB[@]}" shell getevent -pl 2>/dev/null | tr -d '\r' | awk '/^add device/{dev=$NF} /ABS_MT_TRACKING_ID/{print dev; exit}')
+echo "DIAG: raw touch device: ${RAWDEV:-none}"
+raw_seq() { # x y -> sendevent touch sequence
+  printf 'sendevent %s 3 57 0; sendevent %s 3 53 %s; sendevent %s 3 54 %s; sendevent %s 1 330 1; sendevent %s 0 0 0; sendevent %s 3 57 4294967295; sendevent %s 1 330 0; sendevent %s 0 0 0' \
+    "$RAWDEV" "$RAWDEV" "$1" "$RAWDEV" "$2" "$RAWDEV" "$RAWDEV" "$RAWDEV" "$RAWDEV" "$RAWDEV"
+}
 echo "keypad top $KT height $KH"
 
 shot 01-idle-keypad
@@ -426,10 +436,17 @@ read -r D4X D4Y < <(tapf $D4)
 # Even within one adb shell, each 'input tap' spawn costs >1.1s on this
 # emulator (proven: sequential in-shell taps still read "ggggg"). Run the
 # same-key presses CONCURRENTLY so both land inside the 1100ms window.
-"${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
-sleep 2
-"${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
-sleep 2
+if [ -n "$RAWDEV" ]; then
+  "${ADB[@]}" shell "$(raw_seq $D4X $D4Y); sleep 0.3; $(raw_seq $D4X $D4Y)"
+  sleep 2
+  "${ADB[@]}" shell "$(raw_seq $D4X $D4Y); sleep 0.3; $(raw_seq $D4X $D4Y); sleep 0.3; $(raw_seq $D4X $D4Y)"
+  sleep 2
+else
+  "${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
+  sleep 2
+  "${ADB[@]}" shell "input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & sleep 0.2; input tap $D4X $D4Y & wait"
+  sleep 2
+fi
 shot 11-compose-text
 # Send is the left softkey on the compose screen, not CENTER. Decisive taps
 # get lost under emulator load; retry until the frame actually changes.
@@ -442,6 +459,10 @@ for r in 1 2 3; do
     break
   fi
 done
+if cmp -s "$SCREEN_DIR/11-compose-text.png" "$SCREEN_DIR/12-sent.png"; then
+  echo "DIAG: send never registered; Reborn logcat:"
+  "${ADB[@]}" shell logcat -d -s Reborn:* 2>/dev/null | tr -d '\r' | tail -8
+fi
 
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
