@@ -584,5 +584,13 @@ for i in 1 2 3; do tap_key DOWN; sleep 1; done
 tap_key CENTER; sleep 2; shot 22-camera-settings
 tap_key END; sleep 1
 
+# Video recorder: Go to row 4 -> demo preview -> Record -> Stop.
+tap_key LSK; sleep 2
+for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 23-video
+tap_key CENTER; sleep 2; shot 24-video-recording
+tap_key CENTER; sleep 2; shot 25-video-saved
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
