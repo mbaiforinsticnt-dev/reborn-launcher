@@ -150,6 +150,17 @@ ensure_fg() {
   FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | awk '/ResumedActivity/ && !v {print; v=1}'" | tr -d '\r')
   echo "DIAG foreground after ensure: $FG"
 }
+fresh() {
+  # Menu selection is session-preserved (sim lastMenuSel), so menu-relative
+  # nav must start from a known state: relaunch -> idle, selection row 0.
+  "${ADB[@]}" shell am force-stop "$PKG" >/dev/null 2>&1
+  sleep 2
+  "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
+  sleep 5
+  ensure_fg
+  sleep 2
+}
+
 
 TOKEN="$(cat "$HOME/.emulator_console_auth_token" | tr -d '\r\n')"
 emu_console() {
@@ -382,6 +393,7 @@ sleep 4
 # frame and rewalk the chain when one did not.
 sms_walk() {
   ensure_fg
+fresh
   tap_key END; sleep 1
   tap_key CENTER; sleep 2; shot probe-b-menu
   tap_key RIGHT; sleep 1
@@ -460,6 +472,7 @@ sleep 2
 fg_ours || { echo "DIAG: launcher not foreground after incoming call - aborting"; exit 1; }
 
 # Call log: missed call from the modem must be listed.
+fresh
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
 tap_key DOWN; sleep 1
@@ -472,6 +485,7 @@ tap_key CENTER; sleep 2; shot 09-calllog
 # then opened Flash message instead of the composer).
 compose_walk() {
   ensure_fg
+fresh
   tap_key END; sleep 1
   tap_key CENTER; sleep 2; shot probe-c-menu
   tap_key RIGHT; sleep 1
@@ -621,6 +635,7 @@ tap_key CENTER; sleep 3; shot 33-player-playing
 tap_key LSK; sleep 2
 for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
 tap_key CENTER; sleep 2; shot 34-equaliser
+fresh
 tap_key END; sleep 1
 
 # Radio + Voice recorder: menu -> Media -> Radio -> Play -> back -> Voice recorder -> Record -> Stop.
@@ -636,6 +651,7 @@ tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 37-voicerec
 tap_key CENTER; sleep 3; shot 38-voicerec-recording
 tap_key CENTER; sleep 2; shot 39-voicerec-saved
+fresh
 tap_key END; sleep 1
 
 # Maps + Stopwatch: menu -> Organiser -> Maps -> Stopwatch start/stop -> Split timing.
@@ -655,15 +671,18 @@ tap_key CENTER; sleep 2; shot 44-splittiming
 tap_key END; sleep 1
 
 # Media + Apps list pages: menu -> Media (list shot) and menu -> Apps. (list shot).
+fresh
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
 tap_key RIGHT; sleep 1
 tap_key RIGHT; sleep 1
 tap_key CENTER; sleep 2; shot 45-medialist
+fresh
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
-for i in 1 2 3 4 5; do tap_key RIGHT; sleep 1; done
+tap_key DOWN; sleep 1; tap_key RIGHT; sleep 1; tap_key RIGHT; sleep 1
 tap_key CENTER; sleep 2; shot 46-appslist
+fresh
 tap_key END; sleep 1
 
 # Media Options -> Settings itemdetail; Apps Options -> Memory status subtree
@@ -678,9 +697,10 @@ tap_key DOWN; sleep 1
 tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 48-media-settings
 tap_key RSK; sleep 2
+fresh
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
-for i in 1 2 3 4 5; do tap_key RIGHT; sleep 1; done
+tap_key DOWN; sleep 1; tap_key RIGHT; sleep 1; tap_key RIGHT; sleep 1
 tap_key CENTER; sleep 2
 tap_key LSK; sleep 2; shot 49-apps-options
 for i in 1 2 3 4 5; do tap_key DOWN; sleep 1; done
@@ -695,6 +715,7 @@ tap_key LSK; sleep 2
 for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
 tap_key CENTER; sleep 2; shot 53-foldername
 tap_key CENTER; sleep 2; shot 54-foldername-notice
+fresh
 tap_key END; sleep 1
 
 # Organiser subtree: Calendar -> note types -> editor -> saved note -> view;
@@ -733,6 +754,7 @@ tap_key D2; sleep 2
 tap_key D6; sleep 2
 tap_key CENTER; sleep 2; shot 67-noteview
 tap_key RSK; sleep 2; shot 68-notes-list
+fresh
 tap_key END; sleep 1
 
 # Countdown timer subtree: menu -> Normal timer -> fields -> note -> start;
@@ -757,6 +779,7 @@ tap_key CENTER; sleep 2; shot 75-interval-running
 tap_key RSK; sleep 2
 tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 76-cdsettings
+fresh
 tap_key END; sleep 1
 
 # Note editor sub-pages: editing options (Copy all -> Paste), writing language,
@@ -803,6 +826,7 @@ tap_key LSK; sleep 2
 for i in 1 2; do tap_key DOWN; sleep 1; done
 tap_key CENTER; sleep 2; shot 85-sendnote
 tap_key CENTER; sleep 3; shot 86-composer-prefilled
+fresh
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
 tap_key RIGHT; sleep 1
@@ -816,6 +840,7 @@ tap_key CENTER; sleep 2
 tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 87-bluetooth-prompt
 tap_key RSK; sleep 2
+fresh
 tap_key END; sleep 1
 
 # Symbol flyout + picker + note mark mode (184): textnote editor -> flyout ->
@@ -844,6 +869,7 @@ tap_key CENTER; sleep 2; shot 92-mark-dialog
 tap_key CENTER; sleep 1
 tap_key RIGHT; sleep 1
 tap_key CENTER; sleep 2; shot 93-mark-copy
+fresh
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
 tap_key RIGHT; sleep 1
