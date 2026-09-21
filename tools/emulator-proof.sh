@@ -441,6 +441,8 @@ tap_key RIGHT; sleep 1
 tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2
 tap_key CENTER; sleep 2
+# Sim Create message submenu: row 0 "Message" opens the composer.
+tap_key CENTER; sleep 2
 for d in D0 D7 D7 D0 D0 D9 D0 D0 D1 D2 D3; do tap_key "$d"; sleep 1; done
 shot 10-compose-number
 # Unified composer: DOWN moves focus from To: to Text: (sim behaviour).
