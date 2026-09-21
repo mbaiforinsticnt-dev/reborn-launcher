@@ -408,7 +408,34 @@ public class NokiaUi extends View {
         this.actions = actions;
         setFocusable(true);
         setFocusableInTouchMode(true);
+        loadNotes();
         handler.postDelayed(minuteTick, 30_000);
+    }
+
+    // Sim persist(): notes survive process restarts (phoneState.notes).
+    private void saveNotes() {
+        android.content.SharedPreferences sp = getContext().getSharedPreferences("c2reborn", Context.MODE_PRIVATE);
+        StringBuilder t = new StringBuilder(), m = new StringBuilder();
+        for (int i = 0; i < noteTexts.size(); i++) {
+            if (i > 0) { t.append('\u0001'); m.append('\u0001'); }
+            t.append(noteTexts.get(i));
+            m.append(i < noteStamps.size() ? noteStamps.get(i) : "");
+        }
+        sp.edit().putString("noteTexts", t.toString()).putString("noteStamps", m.toString()).apply();
+    }
+
+    private void loadNotes() {
+        android.content.SharedPreferences sp = getContext().getSharedPreferences("c2reborn", Context.MODE_PRIVATE);
+        String t = sp.getString("noteTexts", ""), m = sp.getString("noteStamps", "");
+        noteTexts.clear(); noteStamps.clear();
+        if (!t.isEmpty()) {
+            String[] tp = t.split("\u0001", -1);
+            String[] mp = m.isEmpty() ? new String[0] : m.split("\u0001", -1);
+            for (int i = 0; i < tp.length; i++) {
+                noteTexts.add(tp[i]);
+                noteStamps.add(i < mp.length ? mp[i] : "");
+            }
+        }
     }
 
     @Override
@@ -599,6 +626,7 @@ public class NokiaUi extends View {
             if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
                 int i = noteDeleteFromView ? noteIndex : row;
                 if (i < noteTexts.size()) { noteTexts.remove(i); noteStamps.remove(i); }
+                saveNotes();
                 row = Math.max(0, Math.min(i, noteTexts.size() - 1));
                 deleteNoteConfirm = false;
                 if (noteDeleteFromView) { noteDeleteFromView = false; screen = Screen.LIST; listSection = 43; }
@@ -612,7 +640,7 @@ public class NokiaUi extends View {
         if (deleteNotesConfirm > 0) {
             if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
                 if (deleteNotesConfirm == 1) deleteNotesConfirm = 2;
-                else { noteTexts.clear(); noteStamps.clear(); deleteNotesConfirm = 0; row = 0; }
+                else { noteTexts.clear(); noteStamps.clear(); deleteNotesConfirm = 0; row = 0; saveNotes(); }
             } else if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
                 deleteNotesConfirm = 0;
             }
@@ -1151,8 +1179,8 @@ public class NokiaUi extends View {
         }
         if (screen == Screen.CALC) { calcOperator(delta < 0 ? "\u00D7" : "\u00F7"); return; } // sim: LEFT=x, RIGHT=/
         if (screen == Screen.SCIENTIFIC) { sciSel = (sciSel + (delta < 0 ? 14 : 1)) % 15; return; } // sim: +-1 wrap
-        if (screen == Screen.MENU) {
-            selected = (selected + delta + MENU_ITEMS.length) % MENU_ITEMS.length;
+        if (screen == Screen.MENU) { // sim grid: LEFT/RIGHT cycle within the row
+            selected = (selected / 3) * 3 + (selected % 3 + delta + 3) % 3;
         }
     }
 
@@ -1192,8 +1220,7 @@ public class NokiaUi extends View {
                 activateOption();
                 break;
             case IDLE:
-                screen = Screen.MENU;
-                selected = 0;
+                screen = Screen.MENU; // sim: the menu reopens at lastMenuSel
                 row = 0;
                 break;
             case MENU:
@@ -1345,6 +1372,7 @@ public class NokiaUi extends View {
                         noteStamps.add(0, noteStamp());
                         noteIndex = 0;
                     }
+                    saveNotes();
                     noteTap.clear();
                     noteEditingExisting = false;
                     screen = Screen.NOTEVIEW;
@@ -1842,9 +1870,11 @@ public class NokiaUi extends View {
             }
             return;
         }
-        if (listSection == 44) { // Sim countdown routes
-            if (row == 0) screen = Screen.NORMALTIMER;
-            else if (row == 1) screen = Screen.INTERVALTIMER;
+        if (listSection == 44) { // Sim countdown routes (go() resets sel=0)
+            int r = row;
+            row = 0;
+            if (r == 0) screen = Screen.NORMALTIMER;
+            else if (r == 1) screen = Screen.INTERVALTIMER;
             else screen = Screen.CDSETTINGS;
             return;
         }
@@ -3484,7 +3514,7 @@ public class NokiaUi extends View {
         drawTitle(c, w, h, "Loan calculator");
         float ux = w / 240f;
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.parseColor("#111111"));
+        p.setColor(Color.parseColor("#FFFFFF"));
         p.setTextSize(13 * ux);
         p.setTextAlign(Paint.Align.LEFT);
         String[] lines = {"Calculate either loan amount, annual", "interest rate, loan period or monthly", "instalment.", "", "Enter values for three fields,", "highlight the fourth and select", "Calculate."};
@@ -3497,15 +3527,15 @@ public class NokiaUi extends View {
         drawTitle(c, w, h, "Loan calculator");
         String[] labs = {"Loan amount", "Annual interest rate (%)", "Loan period (months)", "Monthly instalment"};
         float ux = w / 240f;
-        float y = statusH(h) + titleH(h) + 8 * ux;
+        float y = statusH(h) + titleH(h) + 6 * ux;
         for (int i = 0; i < 4; i++) {
             p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.parseColor("#BED5E0"));
+            p.setColor(Color.parseColor("#FFFFFF"));
             p.setTextSize(10 * ux);
             p.setTextAlign(Paint.Align.LEFT);
-            c.drawText(labs[i], 8 * ux, y + 9 * ux, p);
-            float fy = y + 12 * ux;
-            float fh = 24 * ux;
+            c.drawText(labs[i], 8 * ux, y + 8 * ux, p);
+            float fy = y + 11 * ux;
+            float fh = 22 * ux;
             p.setColor(Color.parseColor("#F4F6ED"));
             c.drawRect(8 * ux, fy, w - 8 * ux, fy + fh, p);
             p.setStyle(Paint.Style.STROKE);
@@ -3522,7 +3552,7 @@ public class NokiaUi extends View {
             p.setTextSize(13 * ux);
             p.setTextAlign(Paint.Align.RIGHT);
             c.drawText(loanFields[i], w - 12 * ux, fy + fh * 0.68f, p);
-            y = fy + fh + 7 * ux;
+            y = fy + fh + 5 * ux;
         }
         p.setTextAlign(Paint.Align.LEFT);
     }
@@ -4476,8 +4506,14 @@ public class NokiaUi extends View {
                 screen = Screen.MEMSTATUS;
                 break;
             case "Make a note":
-                // Sim chain: every 'Make a note' option opens the note-type picker.
-                if (from == Screen.LIST && (listSection == 1 || listSection == 41 || listSection == 43)) {
+                // Sim: calendar/organiser 'Make a note' opens the note-type picker;
+                // the notes page's own 'Make a note' goes straight to the textnote editor.
+                if (from == Screen.LIST && listSection == 43) {
+                    noteTap.clear();
+                    noteEditingExisting = false;
+                    textnoteFromView = false;
+                    screen = Screen.TEXTNOTE;
+                } else if (from == Screen.LIST && (listSection == 1 || listSection == 41)) {
                     caltypesFrom = listSection;
                     row = 0;
                     screen = Screen.CALTYPES;
