@@ -485,19 +485,10 @@ public class NokiaUi extends View {
                 }
                 break;
             case CONTACT_CARD:
-                if (row == 1) { // Send message
-                    composeNumber.setLength(0);
-                    composeNumber.append(cardNumber);
-                    composeTap.clear();
-                    composeSent = false;
-                    screen = Screen.COMPOSE_NUMBER;
-                } else if (row == 2) { // Call
-                    actions.dial(cardNumber);
-                    screen = Screen.IDLE;
-                    row = 0;
-                } else if (row == 3) { // Edit contact
-                    openEditContact();
-                }
+                // Sim OK on the contact page calls the number.
+                actions.dial(cardNumber);
+                screen = Screen.IDLE;
+                row = 0;
                 break;
             case READ:
                 if (!threads.isEmpty()) {
@@ -651,7 +642,7 @@ public class NokiaUi extends View {
             case THREADS: return convos.size();
             case CONVERSATION: return Math.max(convoMsgs.size(), 1);
             case CALLLOG: case CONTACTS: return rows.size();
-            case CONTACT_CARD: return 4;
+            case CONTACT_CARD: return 1; // sim: just the number row
             case CONTACTS_HOME: return CONTACTS_MENU.length;
             case CALLLOG_HOME: return CALLLOG_MENU.length;
             default: return 0;
@@ -1847,10 +1838,49 @@ public class NokiaUi extends View {
         p.setTypeface(Typeface.DEFAULT);
     }
 
+    // Sim v4.89 contact page: title "Contact details", a name header with a
+    // grey circular avatar on the right, then one selected row: icon + bold
+    // number. Send message / Call / Edit live in the Options menu (sim).
     private void drawContactCard(Canvas c, int w, int h) {
-        drawTitle(c, w, h, cardName);
-        String[] cardRows = {"Mobile  " + cardNumber, "Send message", "Call", "Edit contact"};
-        drawItemRows(c, w, h, cardRows.length, i -> cardRows[i], null, i -> listIconFor(i));
+        drawTitle(c, w, h, "Contact details");
+        float top = statusH(h) + titleH(h);
+        float padX = w * 0.035f;
+        float nameY = top + h * 0.045f;
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTextSize(w * 0.075f);
+        p.setColor(Color.WHITE);
+        c.drawText(ellipsize(cardName, w * 0.7f, p), padX, nameY, p);
+        p.setTypeface(Typeface.DEFAULT);
+        float avR = w * 0.075f;
+        float avCx = w * 0.90f, avCy = nameY - w * 0.025f;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        c.drawCircle(avCx, avCy, avR, p);
+        p.setColor(Color.parseColor("#111111"));
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(avR * 0.9f);
+        c.drawText("\u25CF", avCx, avCy + avR * 0.32f, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        float rowTop = top + h * 0.075f;
+        float rowH = (softTop(h) - top) / 5f;
+        drawSelPill(c, w, rowTop, rowH);
+        Bitmap ic = listIconFor(0);
+        float textX = padX;
+        if (ic != null) {
+            float iconSize = rowH * 0.60f;
+            float cy = rowTop + rowH / 2f;
+            android.graphics.Rect dst = new android.graphics.Rect(
+                    (int) padX, (int) (cy - iconSize / 2f),
+                    (int) (padX + iconSize), (int) (cy + iconSize / 2f));
+            c.drawBitmap(ic, null, dst, p);
+            textX = padX + iconSize + w * 0.035f;
+        }
+        p.setFakeBoldText(true);
+        p.setTextSize(w * 0.078f);
+        p.setColor(Color.WHITE);
+        c.drawText(ellipsize(cardNumber, w - textX - padX, p), textX, rowTop + rowH * 0.62f, p);
+        p.setFakeBoldText(false);
     }
 
     private void drawRows(Canvas c, int w, int h) {
@@ -2334,4 +2364,4 @@ public class NokiaUi extends View {
             default: return new String[]{"", "", "Back"};
         }
     }
-}
+    }
