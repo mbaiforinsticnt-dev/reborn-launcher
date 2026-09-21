@@ -735,5 +735,29 @@ tap_key CENTER; sleep 2; shot 67-noteview
 tap_key RSK; sleep 2; shot 68-notes-list
 tap_key END; sleep 1
 
+# Countdown timer subtree: menu -> Normal timer -> fields -> note -> start;
+# Interval timer -> start; Timer settings.
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2
+for i in 1 2 3 4 5 6; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 69-countdown
+tap_key CENTER; sleep 2; shot 70-normaltimer
+tap_key D1; sleep 1
+tap_key D5; sleep 1
+shot 71-normaltimer-typed
+tap_key CENTER; sleep 2; shot 72-timernote
+tap_key CENTER; sleep 2; shot 73-organiser-countdown
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 74-intervaltimer
+for i in 1 2 3; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 75-interval-running
+tap_key RSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 76-cdsettings
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
