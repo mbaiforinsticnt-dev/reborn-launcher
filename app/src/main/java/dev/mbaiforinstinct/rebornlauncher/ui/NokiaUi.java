@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS, USEDETAILNUM, LOADINGNOTE
     }
 
     public interface Actions {
@@ -241,9 +241,14 @@ public class NokiaUi extends View {
             {},
             {},
             {},
-            {"Normal timer", "Interval timer", "Settings"}
+            {"Normal timer", "Interval timer", "Settings"},
+            {"Copy", "Copy all", "Cut", "Paste"},
+            {"English", "Deutsch", "Fran\u00e7ais", "Italiano", "Nederlands", "Espa\u00f1ol", "T\u00fcrk\u00e7e", "Portugu\u00eas"},
+            {"Prediction on", "Word suggestions"},
+            {"Phone number", "E-mail address", "Web address"},
+            {"Send as message", "Via Bluetooth"}
     };
-    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone", "Calendar", "To-do list", "Notes", "Countdown"};
+    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone", "Calendar", "To-do list", "Notes", "Countdown", "Editing options", "Writing language", "Prediction options", "Use detail", "Send note"};
 
     private static final String[] CALTYPE_ROWS = {"Reminder", "Meeting", "Call", "Birthday", "Anniversary", "Memo"};
 
@@ -300,6 +305,12 @@ public class NokiaUi extends View {
     private int intervalsLeft = 0;
     private long intervalEndsAt = 0L;
     private final Multitap timerTap = new Multitap();
+    // Sim note editor sub-page state.
+    private String noteClipboard = "";
+    private boolean noteMarkMode = false;
+    private Screen noteSubFrom = Screen.LIST; // page a note sub-list returns to
+    private boolean bluetoothOn = false;
+    private boolean bluetoothPrompt = false;
     private final StringBuilder contactNumber = new StringBuilder();
     private int contactField = 0;
     private boolean composeSent = false;
@@ -412,6 +423,8 @@ public class NokiaUi extends View {
             case TIMERNOTE: drawTimerNote(c, w, h); break;
             case INTERVALTIMER: drawIntervalTimer(c, w, h); break;
             case CDSETTINGS: drawCdSettings(c, w, h); break;
+            case USEDETAILNUM: drawUseDetailNumber(c, w, h); break;
+            case LOADINGNOTE: drawLoadingNote(c, w, h); break;
             case VIDEOREC: drawVideoRec(c, w, h); break;
             case RADIO: drawRadio(c, w, h); break;
             case VOICEREC: drawVoiceRec(c, w, h); break;
@@ -444,6 +457,7 @@ public class NokiaUi extends View {
         if (locked) drawLockOverlay(c, w, h);
         if (notice != null) drawNotice(c, w, h);
         if (composeExitConfirm) drawMailboxDialog(c, w, h, "Save message?");
+        if (bluetoothPrompt) drawMailboxDialog(c, w, h, "Switch Bluetooth on?");
         if (deleteNoteConfirm) drawMailboxDialog(c, w, h, "Delete?");
         if (deleteNotesConfirm > 0) drawMailboxDialog(c, w, h, deleteNotesConfirm == 2 ? "Are you sure? All notes will be deleted." : "Are you sure?");
         drawSoftkeys(c, w, h);
@@ -482,6 +496,18 @@ public class NokiaUi extends View {
                 listReturn = Screen.IDLE;
                 screen = Screen.LIST;
                 row = 0;
+            }
+            invalidate();
+            return true;
+        }
+        // Sim v4.89 bluetooth prompt: Yes switches it on and sends, No dismisses.
+        if (bluetoothPrompt) {
+            if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                bluetoothOn = true;
+                bluetoothPrompt = false;
+                handler.postDelayed(() -> { notice = "Object sent"; invalidate(); }, 900); // sim notice verbatim
+            } else if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
+                bluetoothPrompt = false;
             }
             invalidate();
             return true;
@@ -859,7 +885,14 @@ public class NokiaUi extends View {
                 break;
             case CONFIRM_DEL: screen = Screen.LIST; listSection = 23; row = 2; break;
             case LIST:
-                if (listSection == 44) { listSection = 1; row = 6; }
+                if (listSection == 45 || listSection == 46 || listSection == 47) {
+                    screen = noteSubFrom == Screen.LIST ? Screen.TEXTNOTE : noteSubFrom;
+                }
+                else if (listSection == 48 || listSection == 49) {
+                    if (noteSubFrom == Screen.NOTEVIEW) screen = Screen.NOTEVIEW;
+                    else { screen = Screen.LIST; listSection = 43; }
+                }
+                else if (listSection == 44) { listSection = 1; row = 6; }
                 else if (listSection == 41) { listSection = 1; row = 1; }
                 else if (listSection == 42) { listSection = 1; row = 3; }
                 else if (listSection == 43) { listSection = 1; row = 4; }
@@ -893,6 +926,8 @@ public class NokiaUi extends View {
                 if (timerTap.preview().length() > 0) timerTap.backspace();
                 else screen = Screen.NORMALTIMER;
                 break;
+            case USEDETAILNUM: screen = Screen.LIST; listSection = 48; row = 0; break;
+            case LOADINGNOTE: screen = Screen.LIST; listSection = 49; row = 0; break;
             case INTERVALTIMER: screen = Screen.LIST; listSection = 44; row = 1; break;
             case CDSETTINGS: screen = Screen.LIST; listSection = 44; row = 2; break;
             case CALVIEW: screen = Screen.LIST; listSection = 41; row = 0; break;
@@ -1243,6 +1278,9 @@ public class NokiaUi extends View {
             case CDSETTINGS:
                 if (row == 0) countdownTone = countdownTone.equals("Clock alert") ? "Nokia tune" : "Clock alert";
                 else countdownAutoRepeat = !countdownAutoRepeat;
+                break;
+            case USEDETAILNUM:
+                notice = "Number ready to save"; // sim notice verbatim
                 break;
             case MEMSTATUS:
                 // Sim route map: memorystatus -> phonememory / memorycarddetail.
@@ -1635,6 +1673,51 @@ public class NokiaUi extends View {
             if (todoNotes.isEmpty()) { noteTap.clear(); screen = Screen.TODOEDIT; }
             return;
         }
+        if (listSection == 45) { // Sim noteediting rows act on the editor text
+            if (row == 0) { // Copy: the sim starts mark mode (selection keys queued separately)
+                noteMarkMode = true;
+                screen = noteSubFrom == Screen.LIST ? Screen.TEXTNOTE : noteSubFrom;
+            } else if (row == 1) {
+                noteClipboard = noteTap.text();
+                screen = noteSubFrom == Screen.LIST ? Screen.TEXTNOTE : noteSubFrom;
+                notice = "Copied"; // sim notice verbatim
+            } else if (row == 2) {
+                noteClipboard = noteTap.text();
+                noteTap.clear();
+                screen = noteSubFrom == Screen.LIST ? Screen.TEXTNOTE : noteSubFrom;
+                notice = "Cut"; // sim notice verbatim
+            } else if (noteClipboard.length() > 0) {
+                noteTap.set(noteTap.text() + noteClipboard);
+                screen = noteSubFrom == Screen.LIST ? Screen.TEXTNOTE : noteSubFrom;
+            }
+            return;
+        }
+        if (listSection == 48) { // Sim usedetail: regex-gated rows
+            String body = noteTexts.isEmpty() ? "" : noteTexts.get(Math.min(noteIndex, noteTexts.size() - 1));
+            boolean[] has = noteDetailHits(body);
+            if (!has[row]) return; // sim: a disabled row only redraws
+            if (row == 0) screen = Screen.USEDETAILNUM;
+            else notice = row == 1 ? "E-mail address selected" : "Web address selected"; // sim notices verbatim
+            return;
+        }
+        if (listSection == 49) { // Sim sendnote rows
+            if (row == 0) {
+                screen = Screen.LOADINGNOTE;
+                handler.postDelayed(() -> { // sim: 500ms 'Loading message' then the composer
+                    if (screen != Screen.LOADINGNOTE) return;
+                    composeNumber.setLength(0);
+                    composeTap.clear();
+                    composeTap.set("Note: " + (noteTexts.isEmpty() ? "" : noteTexts.get(Math.min(noteIndex, noteTexts.size() - 1))));
+                    screen = Screen.COMPOSE_NUMBER;
+                    invalidate();
+                }, 500);
+            } else if (!bluetoothOn) {
+                bluetoothPrompt = true;
+            } else {
+                handler.postDelayed(() -> { notice = "Object sent"; invalidate(); }, 900); // sim notice verbatim
+            }
+            return;
+        }
         if (listSection == 44) { // Sim countdown routes
             if (row == 0) screen = Screen.NORMALTIMER;
             else if (row == 1) screen = Screen.INTERVALTIMER;
@@ -1985,6 +2068,16 @@ public class NokiaUi extends View {
                 c.drawText(ellipsize(items[i], w - textX - padX, p), textX, top + rowH * 0.46f, p);
                 p.setFakeBoldText(false);
             }
+            return;
+        }
+        if (listSection == 45) { // Sim noteediting: Paste is disabled with an empty clipboard
+            drawDisabledRows(c, w, h, LIST_ITEMS[45], new boolean[]{false, false, false, noteClipboard.length() == 0});
+            return;
+        }
+        if (listSection == 48) { // Sim usedetail: rows disabled when the note lacks that detail
+            String body = noteTexts.isEmpty() ? "" : noteTexts.get(Math.min(noteIndex, noteTexts.size() - 1));
+            final boolean[] has = noteDetailHits(body);
+            drawDisabledRows(c, w, h, LIST_ITEMS[48], new boolean[]{!has[0], !has[1], !has[2]});
             return;
         }
         if (listSection == 41) { // Sim calendar: live note list or the stub row
@@ -3114,6 +3207,57 @@ public class NokiaUi extends View {
                 : "Auto-repeat  " + (countdownAutoRepeat ? "On" : "Off"), null, null);
     }
 
+    // Sim usedetail regexes: phone / e-mail / web present in the note body.
+    private static boolean[] noteDetailHits(String body) {
+        return new boolean[]{
+                java.util.regex.Pattern.compile("\\+?(?:\\d[\\s().-]*){4,}\\d").matcher(body).find(),
+                java.util.regex.Pattern.compile("[\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,}").matcher(body).find(),
+                body.contains("http://") || body.contains("https://")};
+    }
+
+    // Rows with per-row disabled (#555) rendering, sim .row.disabled.
+    private void drawDisabledRows(Canvas c, int w, int h, String[] items, boolean[] disabled) {
+        float listTop = statusH(h) + titleH(h);
+        float rowH = (softTop(h) - listTop) / 5f;
+        float padX = w * 0.035f;
+        int disCol = Color.parseColor("#555555");
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        for (int i = 0; i < items.length; i++) {
+            float top = listTop + i * rowH;
+            if (i == row) drawSelPill(c, w, top, rowH);
+            boolean dis = disabled[i];
+            p.setTextAlign(Paint.Align.LEFT);
+            p.setFakeBoldText(true);
+            p.setTextSize(w * 0.078f);
+            p.setColor(dis ? disCol : Color.WHITE);
+            c.drawText(ellipsize(items[i], w - padX * 2, p), padX, top + rowH * 0.46f, p);
+            p.setFakeBoldText(false);
+        }
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // Sim v4.89 usedetailnumber page: title 'Number' + the matched number.
+    private void drawUseDetailNumber(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Number");
+        float ux = w / 240f;
+        float x = 10 * ux;
+        float y = statusH(h) + titleH(h) + 10 * ux;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        p.setTextSize(13 * ux);
+        String body = noteTexts.isEmpty() ? "" : noteTexts.get(Math.min(noteIndex, noteTexts.size() - 1));
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\+?(?:\\d[\\s().-]*){4,}\\d").matcher(body);
+        String num = m.find() ? m.group().trim() : "";
+        y += 13 * ux * 1.7f;
+        c.drawText(num, x, y, p);
+    }
+
+    // Sim v4.89 loadingnote page: title + centred empty-state text, no softkeys.
+    private void drawLoadingNote(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Loading message");
+        drawEmpty(c, w, h, "Loading message");
+    }
+
     // Sim v4.89 noteStamp(): 'HH:MM, Ddd DD-MM-YYYY'.
     private String noteStamp() {
         return new java.text.SimpleDateFormat("HH:mm, E dd-MM-yyyy", java.util.Locale.ENGLISH).format(new java.util.Date());
@@ -4017,11 +4161,36 @@ public class NokiaUi extends View {
             case "Clear text":
                 if (from == Screen.TEXTNOTE) noteTap.clear();
                 break;
-            case "Use detail >": case "Send note": case "Send note >":
-            case "Editing options >": case "Insert symbol >":
-            case "Writing language >": case "Prediction options >":
-                // Sub-pages queued for the next patch; the sim navigates here.
-                if (from == Screen.TEXTNOTE || from == Screen.NOTEVIEW || from == Screen.LIST) notice = item + " selected";
+            case "Editing options >":
+                // Sim: the editing-options list opens from either editor page.
+                if (from == Screen.TEXTNOTE || from == Screen.NOTEVIEW) {
+                    noteSubFrom = from;
+                    listSection = 45; screen = Screen.LIST; row = 0;
+                }
+                break;
+            case "Writing language >":
+                if (from == Screen.TEXTNOTE) { noteSubFrom = from; listSection = 46; screen = Screen.LIST; row = 0; }
+                break;
+            case "Prediction options >":
+                if (from == Screen.TEXTNOTE) { noteSubFrom = from; listSection = 47; screen = Screen.LIST; row = 0; }
+                break;
+            case "Use detail >":
+                if (from == Screen.NOTEVIEW || (from == Screen.LIST && listSection == 43)) {
+                    if (from == Screen.LIST) noteIndex = row;
+                    noteSubFrom = from;
+                    listSection = 48; screen = Screen.LIST; row = 0;
+                }
+                break;
+            case "Send note": case "Send note >":
+                if (from == Screen.NOTEVIEW || (from == Screen.LIST && listSection == 43)) {
+                    if (from == Screen.LIST) noteIndex = row;
+                    noteSubFrom = from;
+                    listSection = 49; screen = Screen.LIST; row = 0;
+                }
+                break;
+            case "Insert symbol >":
+                // Sim opens the symbol flyout + picker; queued with the picker grids.
+                if (from == Screen.TEXTNOTE) notice = item + " selected";
                 break;
             case "Instructions":
                 notice = "Enter numbers with keypad. Move through functions with navigation key and press Select."; // sim notice verbatim
@@ -4401,6 +4570,7 @@ public class NokiaUi extends View {
 
     private String[] softLabels() {
         if (composeExitConfirm) return new String[]{"Yes", "", "No"};
+        if (bluetoothPrompt) return new String[]{"Yes", "", "No"};
         if (deleteNoteConfirm) return new String[]{"Yes", "", "No"};
         if (deleteNotesConfirm > 0) return new String[]{"", "Yes", "No"};
         switch (screen) {
@@ -4430,6 +4600,8 @@ public class NokiaUi extends View {
             case TIMERNOTE: return new String[]{"", "Start", timerTap.preview().length() > 0 ? "Clear" : "Back"};
             case INTERVALTIMER: return new String[]{"Options", intervalRunning ? "Stop" : "Change", "Back"};
             case CDSETTINGS: return new String[]{"", "Change", "Back"};
+            case USEDETAILNUM: return new String[]{"", "Save", "Back"};
+            case LOADINGNOTE: return new String[]{"", "", ""};
             case VOICEREC: return new String[]{"Options", voiceRecording ? "Stop" : "Record", "Back"};
             case BROWSER: return new String[]{"Options", "Open", "Back"}; // sim soft('Options','Open','Back')
             case URLENTRY: return new String[]{"Options", "Go", urlEntry.length() > 0 ? "Clear" : "Back"}; // sim label; RSK still backs out, as in the sim
