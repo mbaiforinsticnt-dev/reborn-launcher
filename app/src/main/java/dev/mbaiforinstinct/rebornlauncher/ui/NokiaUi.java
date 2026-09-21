@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME
     }
 
     public interface Actions {
@@ -236,9 +236,10 @@ public class NokiaUi extends View {
             {"Saved messages", "Templates"},
             {"Profiles", "Themes", "Tones", "Display", "Date and time", "My shortcuts", "Sync and backup", "Connectivity"},
             {"Memory card", "Images", "Video clips", "Music files"},
-            {"Nokia.com", "Home", "Bookmarks", "Go to address", "Last web addr."}
+            {"Nokia.com", "Home", "Bookmarks", "Go to address", "Last web addr."},
+            {"Free memory  5.8 MB", "Gallery  11.3 MB", "Messaging  36 MB", "Applications  6.6 MB", "Organiser  1.2 MB"}
     };
-    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web"};
+    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone"};
 
     private int selected = 0;
     private int row = 0;
@@ -266,6 +267,7 @@ public class NokiaUi extends View {
     private final Multitap composeTap = new Multitap();
     private int composeFocus = 0;
     private final Multitap nameTap = new Multitap();
+    private final Multitap folderTap = new Multitap();
     private final StringBuilder contactNumber = new StringBuilder();
     private int contactField = 0;
     private boolean composeSent = false;
@@ -285,6 +287,7 @@ public class NokiaUi extends View {
     private String itemDetailTitle = "";
     private String itemDetailText = "";
     private Screen itemDetailFrom = Screen.IDLE;
+    private Screen memFrom = Screen.MENU;
     // Sim v4.89 videorecorder page state: recording flag + start time.
     private boolean videoRecording = false;
     // Sim v4.89 radio/voicerecorder state (module-level vars in the sim;
@@ -364,6 +367,9 @@ public class NokiaUi extends View {
             case CALC: drawCalc(c, w, h); break;
             case CAMERA: drawCamera(c, w, h); break;
             case ITEMDETAIL: drawItemDetail(c, w, h); break;
+            case MEMSTATUS: drawMemStatus(c, w, h); break;
+            case MEMCARD: drawMemCard(c, w, h); break;
+            case FOLDERNAME: drawFoldername(c, w, h); break;
             case VIDEOREC: drawVideoRec(c, w, h); break;
             case RADIO: drawRadio(c, w, h); break;
             case VOICEREC: drawVoiceRec(c, w, h); break;
@@ -550,6 +556,11 @@ public class NokiaUi extends View {
                     nameTap.press(d);
                     handler.postDelayed(commitTick, 1600);
                 } else if (contactNumber.length() < 24) contactNumber.append(d);
+                break;
+            case FOLDERNAME:
+                handler.removeCallbacks(commitTick);
+                folderTap.press(d);
+                handler.postDelayed(commitTick, 1600);
                 break;
             default: break;
         }
@@ -763,9 +774,18 @@ public class NokiaUi extends View {
                 break;
             case CONFIRM_DEL: screen = Screen.LIST; listSection = 23; row = 2; break;
             case LIST:
-                if (listSection == 32) { listSection = 0; screen = Screen.COMPOSE_NUMBER; row = 0; }
+                if (listSection == 40) { screen = Screen.MEMSTATUS; row = 0; }
+                else if (listSection == 32) { listSection = 0; screen = Screen.COMPOSE_NUMBER; row = 0; }
                 else if (!listBack.isEmpty()) { listSection = listBack.pop(); row = 0; }
                 else { screen = listReturn; row = 0; }
+                break;
+            case MEMSTATUS: screen = memFrom; if (memFrom != Screen.LIST) row = 0; break;
+            case MEMCARD: screen = Screen.MEMSTATUS; row = 1; break;
+            case FOLDERNAME:
+                // Sim right key on foldername: delete a char first, Back only when empty.
+                handler.removeCallbacks(commitTick);
+                if (folderTap.preview().length() > 0) folderTap.backspace();
+                else screen = Screen.LIST;
                 break;
             case THREADS: screen = Screen.LIST; row = 0; break;
             case COMPOSE_NUMBER:
@@ -865,6 +885,7 @@ public class NokiaUi extends View {
             case CONTACT_CARD: return 1; // sim: just the number row
             case CONTACTS_HOME: return CONTACTS_MENU.length;
             case CALLLOG_HOME: return CALLLOG_MENU.length;
+            case MEMSTATUS: return 2;
             default: return 0;
         }
     }
@@ -985,6 +1006,24 @@ public class NokiaUi extends View {
             }
             case CONFIRM_DEL:
                 deleteAllMessages();
+                break;
+            case MEMSTATUS:
+                // Sim route map: memorystatus -> phonememory / memorycarddetail.
+                if (row == 0) { listSection = 40; listBack.clear(); screen = Screen.LIST; row = 0; }
+                else screen = Screen.MEMCARD;
+                break;
+            case FOLDERNAME:
+                // Sim OK chain: a named folder is added and the page lands on
+                // the gallery; an empty name only notices 'Enter folder name'.
+                handler.removeCallbacks(commitTick);
+                folderTap.commit();
+                if (folderTap.text().trim().length() > 0) {
+                    folderTap.clear();
+                    listSection = 38; listBack.clear(); listReturn = Screen.MENU;
+                    screen = Screen.LIST; row = 0;
+                } else {
+                    notice = "Enter folder name"; // sim notice verbatim
+                }
                 break;
             case LIST:
                 selectListItem();
@@ -1622,6 +1661,7 @@ public class NokiaUi extends View {
         String titleRight = null;
         if (listSection == 1 || listSection == 37) titleRight = "\u2026"; // sim "..."
         else if (listSection == 38 || listSection == 39) titleRight = "1"; // sim count
+        else if (listSection == 40) titleRight = String.valueOf(row + 1); // sim count
         drawTitle(c, w, h, LIST_TITLES[listSection], titleRight);
         if (listSection == 11) { // Drafts: live list, not the static stub
             if (drafts.isEmpty()) {
@@ -2433,6 +2473,101 @@ public class NokiaUi extends View {
             y += 13 * ux * 1.7f;
             c.drawText(line, x, y, p);
         }
+    }
+
+    // Sim v4.89 memorystatus page: title with a live count, white rows that
+    // invert to a white background when selected (sim .memoryRow.sel), each
+    // with a thin memory bar (#aaa border, #111 track, #ddd fill).
+    private void drawMemStatus(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Memory status", String.valueOf(row + 1));
+        String[] names = {"Phone", "Memory card"};
+        String[] used = {"5.8 MB free", "2.7 MB"};
+        int[] pct = {82, 18};
+        float ux = w / 240f;
+        float sy = screenH(h) / 253f; // sim LCD screen area is 253px tall
+        float top = statusH(h) + titleH(h);
+        float rowH = 72 * sy;
+        float padX = 9 * ux;
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        for (int i = 0; i < 2; i++) {
+            float ry = top + i * rowH;
+            boolean sel = i == row;
+            if (sel) {
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(Color.WHITE);
+                c.drawRect(0, ry, w, ry + rowH, p);
+            }
+            int fg = sel ? Color.BLACK : Color.WHITE;
+            p.setTextAlign(Paint.Align.LEFT);
+            p.setFakeBoldText(true);
+            p.setTextSize(16 * ux);
+            p.setColor(fg);
+            c.drawText(names[i], padX, ry + 7 * sy + 16 * ux, p);
+            p.setFakeBoldText(false);
+            c.drawText(used[i], padX, ry + 7 * sy + 36 * ux, p);
+            // Bar: 7px tall, #aaa border, #111 track, #ddd fill by percent.
+            float barY = ry + 7 * sy + 44 * ux;
+            float barH = 7 * sy;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#111111"));
+            c.drawRect(padX, barY, w - padX, barY + barH, p);
+            p.setColor(Color.parseColor("#DDDDDD"));
+            c.drawRect(padX, barY, padX + (w - 2 * padX) * pct[i] / 100f, barY + barH, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1f, ux));
+            p.setColor(Color.parseColor("#AAAAAA"));
+            c.drawRect(padX, barY, w - padX, barY + barH, p);
+            p.setStyle(Paint.Style.FILL);
+        }
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // Sim v4.89 memorycarddetail page: title '32' + browserPage-style text.
+    private void drawMemCard(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "32");
+        float ux = w / 240f;
+        float x = 10 * ux;
+        float y = statusH(h) + titleH(h) + 10 * ux;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        p.setTextSize(13 * ux);
+        for (String line : ("Free memory  29.6 GB\n\nUsed memory  2.4 GB\n\nTotal memory  32.0 GB").split("\n")) {
+            y += 13 * ux * 1.7f;
+            if (!line.isEmpty()) c.drawText(line, x, y, p);
+        }
+    }
+
+    // Sim v4.89 foldername page: title + .noteEdit entry box (light #eef3f4
+    // panel, 2px #2689b4 border) with the typed name and a thin cursor.
+    private void drawFoldername(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Folder name");
+        float ux = w / 240f;
+        float sy = screenH(h) / 253f;
+        float left = 10 * ux, right = w - 10 * ux;
+        float top = statusH(h) + titleH(h) + 18 * sy;
+        float boxH = 80 * sy;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEF3F4"));
+        c.drawRect(left, top, right, top + boxH, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2 * ux);
+        p.setColor(Color.parseColor("#2689B4"));
+        c.drawRect(left, top, right, top + boxH, p);
+        p.setStyle(Paint.Style.FILL);
+        String text = folderTap.preview();
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setFakeBoldText(true);
+        p.setTextSize(16 * ux);
+        p.setColor(Color.parseColor("#111111"));
+        float tx = left + 10 * ux;
+        float ty = top + 10 * sy + 10 * sy + 16 * ux; // padding + b margin-top + line
+        c.drawText(text, tx, ty, p);
+        // Sim .noteEdit i: 2px #111 cursor bar, 14px tall, right after the text.
+        float cx = tx + p.measureText(text) + 2 * ux;
+        c.drawRect(cx, ty - 12 * sy, cx + 2 * ux, ty + 3 * sy, p);
+        p.setFakeBoldText(false);
+        p.setTypeface(Typeface.DEFAULT);
     }
 
     // Sim title() text for the pages whose generic 'Details' option opens the
@@ -3287,6 +3422,12 @@ public class NokiaUi extends View {
             case "Help":
                 notice = "Help opened"; // sim notice for Help on fallback pages
                 break;
+            case "Memory status":
+                // Sim chain: 'Memory status' -> go('memorystatus') from any page.
+                memFrom = from;
+                row = 0;
+                screen = Screen.MEMSTATUS;
+                break;
             case "Instructions":
                 notice = "Enter numbers with keypad. Move through functions with navigation key and press Select."; // sim notice verbatim
                 break;
@@ -3307,7 +3448,19 @@ public class NokiaUi extends View {
                 break;
             case "Record": case "Video settings": case "Memory in use":
                 // Sim: these option items fall through to the generic notice.
-                if (from == Screen.VIDEOREC || from == Screen.VOICEREC) notice = item + " selected";
+                if (from == Screen.VIDEOREC || from == Screen.VOICEREC || from == Screen.LIST) notice = item + " selected";
+                break;
+            case "View photos": case "View videos":
+                // Sim: these media-menu options fall through to the generic notice.
+                if (from == Screen.LIST) notice = item + " selected";
+                break;
+            case "Move": case "Move to folder": case "Organise":
+                // Sim chain: '<option> mode opened' notice on list pages.
+                if (from == Screen.LIST || from == Screen.CONVERSATION || from == Screen.READ) notice = item + " mode opened";
+                break;
+            case "Add folder":
+                // Sim chain: opens the folder-name entry page.
+                if (from == Screen.LIST) { folderTap.clear(); screen = Screen.FOLDERNAME; }
                 break;
             case "Split timing": case "Lap timing":
                 // Sim stopwatch options navigate to the split/lap pages.
@@ -3328,7 +3481,12 @@ public class NokiaUi extends View {
             case "Settings":
                 // Sim nav map: 'Settings' opens the itemdetail page with the
                 // page title + ' settings' / 'Settings available'.
-                if (from == Screen.CAMERA || from == Screen.BROWSER || from == Screen.PLAYER || from == Screen.RADIO || from == Screen.MAPS) {
+                if (from == Screen.LIST && (listSection == 30 || listSection == 31)) {
+                    itemDetailTitle = LIST_TITLES[listSection] + " settings";
+                    itemDetailText = "Settings available";
+                    itemDetailFrom = from;
+                    screen = Screen.ITEMDETAIL;
+                } else if (from == Screen.CAMERA || from == Screen.BROWSER || from == Screen.PLAYER || from == Screen.RADIO || from == Screen.MAPS) {
                     itemDetailTitle = (from == Screen.CAMERA ? "Camera" : from == Screen.PLAYER ? "Media player" : from == Screen.RADIO ? "Radio" : from == Screen.MAPS ? "Maps" : "Nokia Browser") + " settings";
                     itemDetailText = "Settings available";
                     itemDetailFrom = from;
@@ -3587,6 +3745,9 @@ public class NokiaUi extends View {
                     case 34: case 35: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
                     case 20: return new String[]{"Call voice mailbox", "Voice mailbox no.", "Info"};
                     case 36: case 38: return new String[]{"Open", "Details", "Help"}; // sim currentOptions fallback
+                    case 30: return new String[]{"Open", "View photos", "View videos", "Settings", "Memory in use"}; // sim opts.media
+                    case 31: return new String[]{"Open", "Move", "Move to folder", "Organise", "Add folder", "Memory status"}; // sim opts.apps
+                    case 40: return new String[]{"Open"}; // sim opts.phonememory
                     default: return new String[0];
                 }
             default: return new String[0];
@@ -3620,6 +3781,9 @@ public class NokiaUi extends View {
             case MAPS: return new String[]{"Options", "Search", "Back"};
             case STOPWATCH: return new String[]{(swRunning || swElapsed > 0) ? "Options" : "", swRunning ? "Stop" : (swElapsed > 0 ? "Continue" : "Start"), "Back"};
             case SWTIMES: return new String[]{"", "Select", "Back"};
+            case MEMSTATUS: return new String[]{"", "Select", "Back"};
+            case MEMCARD: return new String[]{"", "", "Back"};
+            case FOLDERNAME: return new String[]{"", "OK", folderTap.preview().length() > 0 ? "Clear" : "Back"};
             case VOICEREC: return new String[]{"Options", voiceRecording ? "Stop" : "Record", "Back"};
             case BROWSER: return new String[]{"Options", "Open", "Back"}; // sim soft('Options','Open','Back')
             case URLENTRY: return new String[]{"Options", "Go", urlEntry.length() > 0 ? "Clear" : "Back"}; // sim label; RSK still backs out, as in the sim
