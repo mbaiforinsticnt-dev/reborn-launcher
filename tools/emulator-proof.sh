@@ -592,5 +592,36 @@ tap_key CENTER; sleep 2; shot 24-video-recording
 tap_key CENTER; sleep 2; shot 25-video-saved
 tap_key END; sleep 1
 
+# Nokia Browser: Go to row 6 -> home page -> Bookmarks -> Go to address -> Downloads.
+tap_key LSK; sleep 2
+for i in 1 2 3 4 5 6; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 26-browser
+tap_key LSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 27-browser-bookmarks
+tap_key LSK; sleep 2
+for i in 1 2 3; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 28-urlentry
+tap_key RSK; sleep 2
+tap_key LSK; sleep 2
+for i in 1 2 3 4 5; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 29-appdownloads
+tap_key END; sleep 1
+
+# Media player: Go to row 7 -> player -> Music library -> All songs -> Play -> Equaliser.
+tap_key LSK; sleep 2
+for i in 1 2 3 4 5 6 7; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 30-player
+tap_key LSK; sleep 2
+tap_key CENTER; sleep 2; shot 31-mediamenu
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 32-allsongs
+tap_key CENTER; sleep 3; shot 33-player-playing
+tap_key LSK; sleep 2
+for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 34-equaliser
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
