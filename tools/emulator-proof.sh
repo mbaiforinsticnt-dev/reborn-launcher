@@ -759,5 +759,64 @@ tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 76-cdsettings
 tap_key END; sleep 1
 
+# Note editor sub-pages: editing options (Copy all -> Paste), writing language,
+# prediction options; saved numeric note -> use detail, send note, BT prompt.
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2
+for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2
+tap_key LSK; sleep 2
+tap_key CENTER; sleep 2
+for i in 1 2 3 4; do tap_key D2; sleep 1; done
+for i in 1 2 3 4; do tap_key D3; sleep 1; done
+for i in 1 2 3 4; do tap_key D4; sleep 1; done
+for i in 1 2 3 4; do tap_key D5; sleep 1; done
+sleep 2
+tap_key LSK; sleep 2
+for i in 1 2 3; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 77-editing-options
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 78-copyall-notice
+tap_key LSK; sleep 2
+for i in 1 2 3; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2
+for i in 1 2 3; do tap_key DOWN; sleep 1; done
+shot 79-editing-paste-row
+tap_key CENTER; sleep 2; shot 80-pasted
+tap_key LSK; sleep 2
+for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 81-writing-language
+tap_key RSK; sleep 2
+tap_key LSK; sleep 2
+for i in 1 2 3 4 5; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 82-prediction
+tap_key RSK; sleep 2
+tap_key CENTER; sleep 2
+tap_key LSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 83-usedetail
+tap_key CENTER; sleep 2; shot 84-usedetailnumber
+tap_key RSK; sleep 2
+tap_key RSK; sleep 2
+tap_key LSK; sleep 2
+for i in 1 2; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 85-sendnote
+tap_key CENTER; sleep 3; shot 86-composer-prefilled
+tap_key END; sleep 1
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2
+for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2
+tap_key CENTER; sleep 2
+tap_key LSK; sleep 2
+for i in 1 2; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 87-bluetooth-prompt
+tap_key RSK; sleep 2
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
