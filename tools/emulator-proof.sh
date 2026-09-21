@@ -638,5 +638,33 @@ tap_key CENTER; sleep 3; shot 38-voicerec-recording
 tap_key CENTER; sleep 2; shot 39-voicerec-saved
 tap_key END; sleep 1
 
+# Maps + Stopwatch: menu -> Organiser -> Maps -> Stopwatch start/stop -> Split timing.
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 40-maps
+tap_key RSK; sleep 2
+for i in 1 2 3 4 5; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 41-stopwatch
+tap_key CENTER; sleep 3; shot 42-stopwatch-running
+tap_key CENTER; sleep 2; shot 43-stopwatch-stopped
+tap_key LSK; sleep 2
+tap_key CENTER; sleep 2; shot 44-splittiming
+tap_key END; sleep 1
+
+# Media + Apps list pages: menu -> Media (list shot) and menu -> Apps. (list shot).
+tap_key END; sleep 1
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2; shot 45-medialist
+tap_key END; sleep 1
+tap_key CENTER; sleep 2
+for i in 1 2 3 4 5; do tap_key RIGHT; sleep 1; done
+tap_key CENTER; sleep 2; shot 46-appslist
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
