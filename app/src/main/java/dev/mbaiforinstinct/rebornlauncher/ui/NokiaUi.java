@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, TODOEDIT, TEXTNOTE, NOTEVIEW
     }
 
     public interface Actions {
@@ -237,9 +237,14 @@ public class NokiaUi extends View {
             {"Profiles", "Themes", "Tones", "Display", "Date and time", "My shortcuts", "Sync and backup", "Connectivity"},
             {"Memory card", "Images", "Video clips", "Music files"},
             {"Nokia.com", "Home", "Bookmarks", "Go to address", "Last web addr."},
-            {"Free memory  5.8 MB", "Gallery  11.3 MB", "Messaging  36 MB", "Applications  6.6 MB", "Organiser  1.2 MB"}
+            {"Free memory  5.8 MB", "Gallery  11.3 MB", "Messaging  36 MB", "Applications  6.6 MB", "Organiser  1.2 MB"},
+            {},
+            {},
+            {}
     };
-    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone"};
+    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone", "Calendar", "To-do list", "Notes"};
+
+    private static final String[] CALTYPE_ROWS = {"Reminder", "Meeting", "Call", "Birthday", "Anniversary", "Memo"};
 
     private int selected = 0;
     private int row = 0;
@@ -268,6 +273,19 @@ public class NokiaUi extends View {
     private int composeFocus = 0;
     private final Multitap nameTap = new Multitap();
     private final Multitap folderTap = new Multitap();
+    private final Multitap noteTap = new Multitap();
+    private final java.util.ArrayList<String[]> calNotes = new java.util.ArrayList<>(); // {type, text, date}
+    private final java.util.ArrayList<String> todoNotes = new java.util.ArrayList<>();
+    private final java.util.ArrayList<String> noteTexts = new java.util.ArrayList<>();
+    private final java.util.ArrayList<String> noteStamps = new java.util.ArrayList<>();
+    private String noteType = "Reminder";
+    private int noteIndex = 0;
+    private boolean noteEditingExisting = false;
+    private boolean textnoteFromView = false;
+    private boolean deleteNoteConfirm = false;
+    private boolean noteDeleteFromView = false;
+    private int deleteNotesConfirm = 0;
+    private int caltypesFrom = 41; // LIST section the note-type picker was opened from
     private final StringBuilder contactNumber = new StringBuilder();
     private int contactField = 0;
     private boolean composeSent = false;
@@ -370,6 +388,12 @@ public class NokiaUi extends View {
             case MEMSTATUS: drawMemStatus(c, w, h); break;
             case MEMCARD: drawMemCard(c, w, h); break;
             case FOLDERNAME: drawFoldername(c, w, h); break;
+            case CALTYPES: drawCaltypes(c, w, h); break;
+            case CALNOTE: drawCalnote(c, w, h); break;
+            case CALVIEW: drawCalview(c, w, h); break;
+            case TODOEDIT: drawTodoEdit(c, w, h); break;
+            case TEXTNOTE: drawTextNote(c, w, h); break;
+            case NOTEVIEW: drawNoteView(c, w, h); break;
             case VIDEOREC: drawVideoRec(c, w, h); break;
             case RADIO: drawRadio(c, w, h); break;
             case VOICEREC: drawVoiceRec(c, w, h); break;
@@ -402,6 +426,8 @@ public class NokiaUi extends View {
         if (locked) drawLockOverlay(c, w, h);
         if (notice != null) drawNotice(c, w, h);
         if (composeExitConfirm) drawMailboxDialog(c, w, h, "Save message?");
+        if (deleteNoteConfirm) drawMailboxDialog(c, w, h, "Delete?");
+        if (deleteNotesConfirm > 0) drawMailboxDialog(c, w, h, deleteNotesConfirm == 2 ? "Are you sure? All notes will be deleted." : "Are you sure?");
         drawSoftkeys(c, w, h);
     }
 
@@ -438,6 +464,31 @@ public class NokiaUi extends View {
                 listReturn = Screen.IDLE;
                 screen = Screen.LIST;
                 row = 0;
+            }
+            invalidate();
+            return true;
+        }
+        // Sim v4.89 note-delete confirms: only Yes/No act, all else swallowed.
+        if (deleteNoteConfirm) {
+            if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                int i = noteDeleteFromView ? noteIndex : row;
+                if (i < noteTexts.size()) { noteTexts.remove(i); noteStamps.remove(i); }
+                row = Math.max(0, Math.min(i, noteTexts.size() - 1));
+                deleteNoteConfirm = false;
+                if (noteDeleteFromView) { noteDeleteFromView = false; screen = Screen.LIST; listSection = 43; }
+            } else if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
+                deleteNoteConfirm = false;
+                noteDeleteFromView = false;
+            }
+            invalidate();
+            return true;
+        }
+        if (deleteNotesConfirm > 0) {
+            if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                if (deleteNotesConfirm == 1) deleteNotesConfirm = 2;
+                else { noteTexts.clear(); noteStamps.clear(); deleteNotesConfirm = 0; row = 0; }
+            } else if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
+                deleteNotesConfirm = 0;
             }
             invalidate();
             return true;
@@ -560,6 +611,11 @@ public class NokiaUi extends View {
             case FOLDERNAME:
                 handler.removeCallbacks(commitTick);
                 folderTap.press(d);
+                handler.postDelayed(commitTick, 1600);
+                break;
+            case CALNOTE: case TODOEDIT: case TEXTNOTE:
+                handler.removeCallbacks(commitTick);
+                noteTap.press(d);
                 handler.postDelayed(commitTick, 1600);
                 break;
             default: break;
@@ -774,11 +830,34 @@ public class NokiaUi extends View {
                 break;
             case CONFIRM_DEL: screen = Screen.LIST; listSection = 23; row = 2; break;
             case LIST:
-                if (listSection == 40) { screen = Screen.MEMSTATUS; row = 0; }
+                if (listSection == 41) { listSection = 1; row = 1; }
+                else if (listSection == 42) { listSection = 1; row = 3; }
+                else if (listSection == 43) { listSection = 1; row = 4; }
+                else if (listSection == 40) { screen = Screen.MEMSTATUS; row = 0; }
                 else if (listSection == 32) { listSection = 0; screen = Screen.COMPOSE_NUMBER; row = 0; }
                 else if (!listBack.isEmpty()) { listSection = listBack.pop(); row = 0; }
                 else { screen = listReturn; row = 0; }
                 break;
+            case CALTYPES: screen = Screen.LIST; listSection = caltypesFrom; row = caltypesFrom == 1 ? 1 : 0; break;
+            case CALNOTE:
+                // Sim right key: delete a char first, Back only when empty.
+                handler.removeCallbacks(commitTick);
+                if (noteTap.preview().length() > 0) noteTap.backspace();
+                else screen = Screen.CALTYPES;
+                break;
+            case TODOEDIT:
+                handler.removeCallbacks(commitTick);
+                if (noteTap.preview().length() > 0) noteTap.backspace();
+                else { screen = Screen.LIST; listSection = 42; row = 0; }
+                break;
+            case TEXTNOTE:
+                handler.removeCallbacks(commitTick);
+                if (noteTap.preview().length() > 0) noteTap.backspace();
+                else if (textnoteFromView && noteEditingExisting) { textnoteFromView = false; screen = Screen.NOTEVIEW; }
+                else { screen = Screen.LIST; listSection = 43; }
+                break;
+            case CALVIEW: screen = Screen.LIST; listSection = 41; row = 0; break;
+            case NOTEVIEW: screen = Screen.LIST; listSection = 43; row = Math.min(noteIndex, Math.max(noteTexts.size() - 1, 0)); break;
             case MEMSTATUS: screen = memFrom; if (memFrom != Screen.LIST) row = 0; break;
             case MEMCARD: screen = Screen.MEMSTATUS; row = 1; break;
             case FOLDERNAME:
@@ -878,7 +957,13 @@ public class NokiaUi extends View {
             case ALLSONGS: return 1;
             case LIBLIST: return LIB_LISTS[libKind].length;
             case EQUALISER: return EQ_ROWS.length;
-            case LIST: return listSection == 11 ? drafts.size() : LIST_ITEMS[listSection].length;
+            case LIST:
+                if (listSection == 11) return drafts.size();
+                if (listSection == 41) return Math.max(calNotes.size(), 1);
+                if (listSection == 42) return Math.max(todoNotes.size(), 1);
+                if (listSection == 43) return noteTexts.size();
+                return LIST_ITEMS[listSection].length;
+            case CALTYPES: return CALTYPE_ROWS.length;
             case THREADS: return convos.size();
             case CONVERSATION: return Math.max(convoMsgs.size(), 1);
             case CALLLOG: case CONTACTS: return rows.size();
@@ -1006,6 +1091,65 @@ public class NokiaUi extends View {
             }
             case CONFIRM_DEL:
                 deleteAllMessages();
+                break;
+            case CALTYPES:
+                // Sim caltypes: the selected type opens the note editor.
+                noteType = CALTYPE_ROWS[row];
+                noteTap.clear();
+                screen = Screen.CALNOTE;
+                break;
+            case CALNOTE:
+                // Sim calnote save: a named note lands on the calendar page.
+                handler.removeCallbacks(commitTick);
+                noteTap.commit();
+                if (noteTap.text().trim().length() > 0) {
+                    calNotes.add(0, new String[]{noteType, noteTap.text().trim(), "Today"});
+                    noteTap.clear();
+                    listSection = 41; screen = Screen.LIST; row = 0;
+                } else {
+                    notice = "Enter note"; // sim notice verbatim
+                }
+                break;
+            case TODOEDIT:
+                handler.removeCallbacks(commitTick);
+                noteTap.commit();
+                if (noteTap.text().trim().length() > 0) {
+                    todoNotes.add(0, noteTap.text().trim());
+                    noteTap.clear();
+                    listSection = 42; screen = Screen.LIST; row = 0;
+                } else {
+                    notice = "Enter to-do note"; // sim notice verbatim
+                }
+                break;
+            case TEXTNOTE:
+                // Sim textnote save: update in place when editing, else unshift,
+                // then land on the note view with the 'Note saved' notice.
+                handler.removeCallbacks(commitTick);
+                noteTap.commit();
+                if (noteTap.text().trim().length() > 0) {
+                    if (noteEditingExisting) {
+                        noteTexts.set(noteIndex, noteTap.text().trim());
+                    } else {
+                        noteTexts.add(0, noteTap.text().trim());
+                        noteStamps.add(0, noteStamp());
+                        noteIndex = 0;
+                    }
+                    noteTap.clear();
+                    noteEditingExisting = false;
+                    screen = Screen.NOTEVIEW;
+                    notice = "Note saved \u2713"; // sim notice verbatim
+                } else {
+                    notice = "Enter note"; // sim notice verbatim
+                }
+                break;
+            case NOTEVIEW:
+                // Sim noteview centre Edit: the editor opens prefilled.
+                if (!noteTexts.isEmpty()) {
+                    noteTap.set(noteTexts.get(noteIndex));
+                    noteEditingExisting = true;
+                    textnoteFromView = true;
+                    screen = Screen.TEXTNOTE;
+                }
                 break;
             case MEMSTATUS:
                 // Sim route map: memorystatus -> phonememory / memorycarddetail.
@@ -1354,8 +1498,23 @@ public class NokiaUi extends View {
                 row = 0;
                 return;
             }
+            if (row == 1) { // sim organiser row 1 opens the calendar page
+                listSection = 41;
+                row = 0;
+                return;
+            }
             if (row == 2) { // sim organiser row 2 opens the maps page
                 screen = Screen.MAPS;
+                return;
+            }
+            if (row == 3) { // sim organiser row 3 opens the to-do list
+                listSection = 42;
+                row = 0;
+                return;
+            }
+            if (row == 4) { // sim organiser row 4 opens the notes page
+                listSection = 43;
+                row = 0;
                 return;
             }
             if (row == 5) { // sim organiser row 5 opens the calculator page
@@ -1368,6 +1527,20 @@ public class NokiaUi extends View {
                 return;
             }
             actions.openRoute(LIST_TITLES[listSection], LIST_ITEMS[listSection][row]);
+        }
+        if (listSection == 41) { // Sim calendar centre: Make note when empty, View otherwise
+            if (calNotes.isEmpty()) { caltypesFrom = 41; screen = Screen.CALTYPES; }
+            else screen = Screen.CALVIEW;
+            return;
+        }
+        if (listSection == 42) { // Sim to-do centre: Add when empty; 'Open' is a dead key with notes
+            if (todoNotes.isEmpty()) { noteTap.clear(); screen = Screen.TODOEDIT; }
+            return;
+        }
+        if (listSection == 43) { // Sim notes centre: Add when empty, View otherwise
+            if (noteTexts.isEmpty()) { noteTap.clear(); noteEditingExisting = false; textnoteFromView = false; screen = Screen.TEXTNOTE; }
+            else { noteIndex = row; screen = Screen.NOTEVIEW; }
+            return;
         }
         // Remaining sections are sim-static pages: rows are information only.
     }
@@ -1707,6 +1880,31 @@ public class NokiaUi extends View {
                 p.setColor(col);
                 c.drawText(ellipsize(items[i], w - textX - padX, p), textX, top + rowH * 0.46f, p);
                 p.setFakeBoldText(false);
+            }
+            return;
+        }
+        if (listSection == 41) { // Sim calendar: live note list or the stub row
+            if (calNotes.isEmpty()) drawItemRows(c, w, h, 1, i -> "No calendar notes", null, null);
+            else drawItemRows(c, w, h, calNotes.size(), i -> calNotes.get(i)[0] + "  " + calNotes.get(i)[1], null, null);
+            return;
+        }
+        if (listSection == 42) { // Sim to-do list: live list or the stub row
+            if (todoNotes.isEmpty()) drawItemRows(c, w, h, 1, i -> "(no notes)", null, null);
+            else drawItemRows(c, w, h, todoNotes.size(), i -> todoNotes.get(i), null, null);
+            return;
+        }
+        if (listSection == 43) { // Sim notes: live list, or the grey centred empty state
+            if (noteTexts.isEmpty()) {
+                p.setTextAlign(Paint.Align.CENTER);
+                p.setColor(Color.parseColor("#888888"));
+                p.setTextSize(w * 0.079f);
+                c.drawText("(no notes)", w * 0.5f, statusH(h) + titleH(h) + 75 * (screenH(h) / 253f), p);
+                p.setTextAlign(Paint.Align.LEFT);
+            } else {
+                drawItemRows(c, w, h, noteTexts.size(), i -> {
+                    String n = noteTexts.get(i);
+                    return n.length() > 32 ? n.substring(0, 31) + "..." : n;
+                }, null, null);
             }
             return;
         }
@@ -2570,6 +2768,117 @@ public class NokiaUi extends View {
         p.setTypeface(Typeface.DEFAULT);
     }
 
+    // Sim v4.89 caltypes page: 'Make a note' + the six note types.
+    private void drawCaltypes(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Make a note");
+        drawItemRows(c, w, h, CALTYPE_ROWS.length, i -> CALTYPE_ROWS[i], null, null);
+    }
+
+    // Sim v4.89 .noteEdit box shared by the organiser editors: light #eef3f4
+    // panel, 2px #2689b4 border, small #35637a label line, bold text, cursor.
+    private void drawNoteEditBox(Canvas c, int w, int h, String small, String text, boolean cursor) {
+        float ux = w / 240f;
+        float sy = screenH(h) / 253f;
+        float left = 10 * ux, right = w - 10 * ux;
+        float top = statusH(h) + titleH(h) + 18 * sy;
+        float boxH = 80 * sy;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEF3F4"));
+        c.drawRect(left, top, right, top + boxH, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2 * ux);
+        p.setColor(Color.parseColor("#2689B4"));
+        c.drawRect(left, top, right, top + boxH, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextAlign(Paint.Align.LEFT);
+        float tx = left + 10 * ux;
+        float ty = top + 10 * sy;
+        if (small != null) {
+            p.setTextSize(12 * ux);
+            p.setColor(Color.parseColor("#35637A"));
+            ty += 12 * ux;
+            c.drawText(small, tx, ty, p);
+        }
+        ty += 10 * sy; // .noteEdit b margin-top
+        p.setTextSize(16 * ux);
+        p.setColor(Color.parseColor("#111111"));
+        p.setFakeBoldText(true);
+        ty += 16 * ux;
+        c.drawText(text, tx, ty, p);
+        if (cursor) {
+            float cx = tx + p.measureText(text) + 2 * ux;
+            c.drawRect(cx, ty - 12 * sy, cx + 2 * ux, ty + 3 * sy, p);
+        }
+        p.setFakeBoldText(false);
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    private void drawCalnote(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Make a note");
+        drawNoteEditBox(c, w, h, noteType, noteTap.preview(), true);
+    }
+
+    // Sim v4.89 calview page: the note type as title, date + text in the box.
+    private void drawCalview(Canvas c, int w, int h) {
+        if (calNotes.isEmpty()) {
+            drawTitle(c, w, h, "Calendar note");
+            drawEmpty(c, w, h, "No calendar notes");
+            return;
+        }
+        String[] n = calNotes.get(Math.min(row, calNotes.size() - 1));
+        drawTitle(c, w, h, n[0]);
+        drawNoteEditBox(c, w, h, n[2], n[1], false);
+    }
+
+    // Sim v4.89 todoedit/textnote title: left text plus the right-side
+    // character countdown ('NNNN' over 'abc').
+    private void drawEditorTitle(Canvas c, int w, int h, String left) {
+        drawTitle(c, w, h, left);
+        float top = statusH(h);
+        float th = titleH(h);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setColor(Color.parseColor("#DDDDDD"));
+        p.setTextAlign(Paint.Align.RIGHT);
+        p.setTextSize(w * 0.045f);
+        c.drawText(String.valueOf(3000 - noteTap.text().length()), w * 0.98f, top + th * 0.38f, p);
+        c.drawText("abc", w * 0.98f, top + th * 0.82f, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    private void drawTodoEdit(Canvas c, int w, int h) {
+        drawEditorTitle(c, w, h, "Add to-do");
+        drawNoteEditBox(c, w, h, "To-do note", noteTap.preview(), true);
+    }
+
+    private void drawTextNote(Canvas c, int w, int h) {
+        String first = noteTap.preview().split("\n")[0];
+        drawEditorTitle(c, w, h, first.isEmpty() ? "Notes" : first);
+        drawNoteEditBox(c, w, h, "Note", noteTap.preview(), true);
+    }
+
+    // Sim v4.89 noteview page: title 'Note' + browserPage-style body.
+    private void drawNoteView(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Note");
+        float ux = w / 240f;
+        float x = 10 * ux;
+        float y = statusH(h) + titleH(h) + 10 * ux;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        p.setTextSize(13 * ux);
+        String body = noteTexts.isEmpty() ? "" : noteTexts.get(Math.min(noteIndex, noteTexts.size() - 1));
+        for (String line : body.split("\n")) {
+            y += 13 * ux * 1.7f;
+            if (!line.isEmpty()) c.drawText(line, x, y, p);
+        }
+    }
+
+    // Sim v4.89 noteStamp(): 'HH:MM, Ddd DD-MM-YYYY'.
+    private String noteStamp() {
+        return new java.text.SimpleDateFormat("HH:mm, E dd-MM-yyyy", java.util.Locale.ENGLISH).format(new java.util.Date());
+    }
+
     // Sim title() text for the pages whose generic 'Details' option opens the
     // itemdetail page.
     private String detailTitleFor(Screen sc) {
@@ -2587,6 +2896,12 @@ public class NokiaUi extends View {
             case ALLSONGS: return "Allsongs"; // sim title() fallback quirk
             case EQUALISER: return "Equaliser";
             case LIBLIST: return LIB_TITLES[libKind];
+            case CALTYPES: return "Caltypes"; // sim title() fallback quirk
+            case CALNOTE: return "Calnote"; // sim title() fallback quirk
+            case CALVIEW: return "Calview"; // sim title() fallback quirk
+            case TODOEDIT: return "Todoedit"; // sim title() fallback quirk
+            case TEXTNOTE: return "Textnote"; // sim title() fallback quirk
+            case NOTEVIEW: return "Noteview"; // sim title() fallback quirk
             default: return "Details";
         }
     }
@@ -3428,6 +3743,44 @@ public class NokiaUi extends View {
                 row = 0;
                 screen = Screen.MEMSTATUS;
                 break;
+            case "Make a note":
+                // Sim chain: every 'Make a note' option opens the note-type picker.
+                if (from == Screen.LIST && (listSection == 1 || listSection == 41 || listSection == 43)) {
+                    caltypesFrom = listSection;
+                    row = 0;
+                    screen = Screen.CALTYPES;
+                }
+                break;
+            case "Week view": case "Go to date": case "Go to today":
+                // Sim chain: '<option> opened' notice.
+                if (from == Screen.LIST) notice = item + " opened";
+                break;
+            case "Go to To-do list":
+                if (from == Screen.LIST && listSection == 41) { listSection = 42; row = 0; }
+                break;
+            case "Go to calendar":
+                if (from == Screen.LIST && listSection == 42) { listSection = 41; row = 0; }
+                break;
+            case "Add":
+                // Sim chain: to-do 'Add' opens the to-do editor.
+                if (from == Screen.LIST && listSection == 42) { noteTap.clear(); noteEditingExisting = false; screen = Screen.TODOEDIT; }
+                break;
+            case "Delete all notes":
+                // Sim: two-step 'Are you sure?' confirm.
+                if (from == Screen.LIST && listSection == 43) deleteNotesConfirm = 1;
+                break;
+            case "Insert time and date":
+                if (from == Screen.TEXTNOTE) { noteTap.commit(); noteTap.set(noteTap.text() + noteStamp()); }
+                break;
+            case "Clear text":
+                if (from == Screen.TEXTNOTE) noteTap.clear();
+                break;
+            case "Use detail >": case "Send note": case "Send note >":
+            case "Editing options >": case "Insert symbol >":
+            case "Writing language >": case "Prediction options >":
+                // Sub-pages queued for the next patch; the sim navigates here.
+                if (from == Screen.TEXTNOTE || from == Screen.NOTEVIEW || from == Screen.LIST) notice = item + " selected";
+                break;
             case "Instructions":
                 notice = "Enter numbers with keypad. Move through functions with navigation key and press Select."; // sim notice verbatim
                 break;
@@ -3481,7 +3834,7 @@ public class NokiaUi extends View {
             case "Settings":
                 // Sim nav map: 'Settings' opens the itemdetail page with the
                 // page title + ' settings' / 'Settings available'.
-                if (from == Screen.LIST && (listSection == 30 || listSection == 31)) {
+                if (from == Screen.LIST && (listSection == 30 || listSection == 31 || listSection == 1)) {
                     itemDetailTitle = LIST_TITLES[listSection] + " settings";
                     itemDetailText = "Settings available";
                     itemDetailFrom = from;
@@ -3592,9 +3945,38 @@ public class NokiaUi extends View {
                 break;
             case "Edit":
                 if (from == Screen.CONTACT_CARD) openEditContact();
+                else if (from == Screen.NOTEVIEW) {
+                    noteTap.set(noteTexts.get(noteIndex));
+                    noteEditingExisting = true;
+                    textnoteFromView = true;
+                    screen = Screen.TEXTNOTE;
+                } else if (from == Screen.LIST && listSection == 43 && !noteTexts.isEmpty()) {
+                    noteIndex = row;
+                    noteTap.set(noteTexts.get(row));
+                    noteEditingExisting = true;
+                    textnoteFromView = false;
+                    screen = Screen.TEXTNOTE;
+                }
                 break;
             case "Delete":
-                if (from == Screen.CONTACT_CARD) {
+                if (from == Screen.LIST && listSection == 41 && !calNotes.isEmpty()) {
+                    // Sim: calendar Delete splices the note, notice verbatim.
+                    calNotes.remove(row);
+                    row = 0;
+                    notice = "Calendar note deleted";
+                } else if (from == Screen.LIST && listSection == 42 && !todoNotes.isEmpty()) {
+                    // Sim: to-do Delete splices the note, notice verbatim.
+                    todoNotes.remove(row);
+                    row = 0;
+                    notice = "To-do deleted";
+                } else if (from == Screen.LIST && listSection == 43 && !noteTexts.isEmpty()) {
+                    // Sim: notes Delete asks 'Delete?' first.
+                    noteDeleteFromView = false;
+                    deleteNoteConfirm = true;
+                } else if (from == Screen.NOTEVIEW) {
+                    noteDeleteFromView = true;
+                    deleteNoteConfirm = true;
+                } else if (from == Screen.CONTACT_CARD) {
                     if (actions.deleteContact(cardName, cardNumber)) {
                         rows = actions.contacts();
                         notice = "Contact deleted"; // sim notice, then back to names
@@ -3731,6 +4113,13 @@ public class NokiaUi extends View {
             case PLAYER: return new String[]{"Music library", "Now playing", "Shuffle", "Repeat", "Equaliser", "Settings"}; // sim opts.player
             case EQUALISER: return new String[]{"Activate", "Edit", "Rename"}; // sim opts.equaliser
             case MUSICLIB: case ALLSONGS: case LIBLIST: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
+            case CALNOTE: case TODOEDIT: case CALVIEW: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
+            case TEXTNOTE:
+                // Sim currentOptions: 'Clear text' only exists once there is text.
+                if (noteTap.text().length() > 0)
+                    return new String[]{"Insert time and date", "Clear text", "Insert symbol >", "Editing options >", "Writing language >", "Prediction options >"};
+                return new String[]{"Insert time and date", "Insert symbol >", "Editing options >", "Writing language >", "Prediction options >"};
+            case NOTEVIEW: return new String[]{"Delete", "Use detail >", "Send note >", "Editing options >"}; // sim opts.noteview
             case CONTACT_CARD: return new String[]{"Add detail >", "Call", "Edit", "Delete", "Send message >", "View conversations", "Add image >", "Use number", "Set as default", "Change type >", "Copy number", "Send business card >", "Add to group", "Speed dial"};
             case CONTACTS_HOME: return new String[]{"Open", "Search", "Add new", "Memory status"};
             case CALLLOG_HOME: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
@@ -3748,6 +4137,10 @@ public class NokiaUi extends View {
                     case 30: return new String[]{"Open", "View photos", "View videos", "Settings", "Memory in use"}; // sim opts.media
                     case 31: return new String[]{"Open", "Move", "Move to folder", "Organise", "Add folder", "Memory status"}; // sim opts.apps
                     case 40: return new String[]{"Open"}; // sim opts.phonememory
+                    case 1: return new String[]{"Open", "Make a note", "Week view", "Go to date", "Go to today", "Settings", "Memory status"}; // sim opts.organiser
+                    case 41: return new String[]{"View", "Make a note", "Delete", "Week view", "Go to date", "Go to today", "Memory status", "Go to To-do list"}; // sim opts.calendar
+                    case 42: return new String[]{"Open", "Add", "Delete", "Memory status", "Go to calendar"}; // sim opts.todolist
+                    case 43: return new String[]{"Make a note", "Delete", "Edit", "Use detail >", "Send note", "Delete all notes", "Memory status"}; // sim opts.notes
                     default: return new String[0];
                 }
             default: return new String[0];
@@ -3766,6 +4159,8 @@ public class NokiaUi extends View {
 
     private String[] softLabels() {
         if (composeExitConfirm) return new String[]{"Yes", "", "No"};
+        if (deleteNoteConfirm) return new String[]{"Yes", "", "No"};
+        if (deleteNotesConfirm > 0) return new String[]{"", "Yes", "No"};
         switch (screen) {
             case IDLE: return locked ? new String[]{"Unlock", "", ""} : new String[]{"Go to", "Menu", "Names"};
             case OPTIONS: return new String[]{"", "Select", "Back"};
@@ -3784,6 +4179,11 @@ public class NokiaUi extends View {
             case MEMSTATUS: return new String[]{"", "Select", "Back"};
             case MEMCARD: return new String[]{"", "", "Back"};
             case FOLDERNAME: return new String[]{"", "OK", folderTap.preview().length() > 0 ? "Clear" : "Back"};
+            case CALTYPES: return new String[]{"", "Select", "Back"};
+            case CALNOTE: case TODOEDIT: case TEXTNOTE:
+                return new String[]{"Options", "Save", noteTap.preview().length() > 0 ? "Clear" : "Back"};
+            case CALVIEW: return new String[]{"Options", "Edit", "Back"};
+            case NOTEVIEW: return new String[]{"Options", "Edit", "Back"};
             case VOICEREC: return new String[]{"Options", voiceRecording ? "Stop" : "Record", "Back"};
             case BROWSER: return new String[]{"Options", "Open", "Back"}; // sim soft('Options','Open','Back')
             case URLENTRY: return new String[]{"Options", "Go", urlEntry.length() > 0 ? "Clear" : "Back"}; // sim label; RSK still backs out, as in the sim
@@ -3800,6 +4200,9 @@ public class NokiaUi extends View {
                 if (listSection == 11) centre = "Edit"; // Drafts
                 else if ((listSection >= 12 && listSection <= 16) || listSection == 36 || listSection == 38) centre = "Open"; // Outbox/Sent/Saved/Templates/Saved messages/My folders/Gallery
                 else if (listSection == 34 || listSection == 35) centre = ""; // sim soft('Options','','Back')
+                else if (listSection == 41) centre = calNotes.isEmpty() ? "Make note" : "View"; // sim calendar centre
+                else if (listSection == 42) centre = todoNotes.isEmpty() ? "Add" : "Open"; // sim to-do centre
+                else if (listSection == 43) centre = noteTexts.isEmpty() ? "Add" : "View"; // sim notes centre
                 return new String[]{optionsItemsFor(Screen.LIST).length > 0 ? "Options" : "", centre, "Back"};
             }
             case THREADS: return new String[]{"Options", "Open", "Back"};
