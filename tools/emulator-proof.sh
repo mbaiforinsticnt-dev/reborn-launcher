@@ -867,5 +867,34 @@ tap_key CENTER; sleep 2; shot 97-composer-writing-language
 tap_key RSK; sleep 2
 tap_key END; sleep 1
 
+# (186) Scientific + loan calculator: calc options -> Scientific (sin 90 = 1);
+# Loan intro -> form 20000/5/24 -> Calculate monthly instalment.
+tap_key LSK; sleep 2
+for i in 1 2 3 4 5; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2
+tap_key LSK; sleep 2
+tap_key CENTER; sleep 2; shot 98-scientific
+tap_key D9; sleep 1
+tap_key D0; sleep 1
+tap_key CENTER; sleep 2; shot 99-scientific-sin
+tap_key LSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 100-loanintro
+tap_key CENTER; sleep 2; shot 101-loancalc
+tap_key D2; sleep 1
+tap_key D0; sleep 1
+tap_key D0; sleep 1
+tap_key D0; sleep 1
+tap_key D0; sleep 1
+tap_key DOWN; sleep 1
+tap_key D5; sleep 1
+tap_key DOWN; sleep 1
+tap_key D2; sleep 1
+tap_key D4; sleep 1
+tap_key DOWN; sleep 1
+shot 102-loancalc-ready
+tap_key CENTER; sleep 2; shot 103-loancalc-result
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
