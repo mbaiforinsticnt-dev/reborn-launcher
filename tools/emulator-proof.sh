@@ -137,6 +137,20 @@ print(f"{p}: {w}x{h} ok")
 PY
 }
 
+ensure_fg() {
+  # Re-foreground the launcher when a heads-up notification or keyguard
+  # stole it; taps are keypad-relative and land on whatever is on screen.
+  FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | awk '/ResumedActivity/ && !v {print; v=1}'" | tr -d '\r')
+  case "$FG" in *"$PKG"*) return 0 ;; esac
+  echo "DIAG: foreground is [$FG] - re-foregrounding launcher"
+  "${ADB[@]}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+  "${ADB[@]}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
+  "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
+  sleep 4
+  FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | awk '/ResumedActivity/ && !v {print; v=1}'" | tr -d '\r')
+  echo "DIAG foreground after ensure: $FG"
+}
+
 TOKEN="$(cat "$HOME/.emulator_console_auth_token" | tr -d '\r\n')"
 emu_console() {
   { sleep 1; echo "auth $TOKEN"; sleep 1; echo "$1"; sleep 2; } | timeout 10 nc localhost 5554 >/dev/null 2>&1 || true
@@ -362,14 +376,32 @@ tap_key CENTER; sleep 2; shot 04-conversations-empty
 emu_console 'sms send +15551234567 Reborn proof OK'
 sleep 4
 
-# Back to Messaging -> Conversations: message must be listed.
-tap_key END; sleep 1
-tap_key CENTER; sleep 2
-tap_key RIGHT; sleep 1
-tap_key DOWN; sleep 1
-tap_key CENTER; sleep 2
-tap_key DOWN; sleep 1
-tap_key CENTER; sleep 2; shot 05-sms-inbox
+# Back to Messaging -> Conversations: message must be listed. Lost taps
+# and stolen foreground have derailed this chain (proven: shot 05 once
+# landed in system Display settings), so verify every hop changed the
+# frame and rewalk the chain when one did not.
+sms_walk() {
+  ensure_fg
+  tap_key END; sleep 1
+  tap_key CENTER; sleep 2; shot probe-b-menu
+  tap_key RIGHT; sleep 1
+  tap_key DOWN; sleep 1
+  tap_key CENTER; sleep 2; shot probe-b-mlist
+  tap_key DOWN; sleep 1; shot probe-b-msel
+  tap_key CENTER; sleep 2; shot probe-b-conv
+}
+sms_walk
+for attempt in 1 2; do
+  bad=""
+  cmp -s "$SCREEN_DIR/probe-b-menu.png" "$SCREEN_DIR/probe-b-mlist.png" && bad="$bad mlist"
+  cmp -s "$SCREEN_DIR/probe-b-mlist.png" "$SCREEN_DIR/probe-b-msel.png" && bad="$bad select-down"
+  cmp -s "$SCREEN_DIR/probe-b-msel.png" "$SCREEN_DIR/probe-b-conv.png" && bad="$bad conversations"
+  [ -z "$bad" ] && break
+  echo "DIAG: sms walk attempt $attempt lost hop(s):$bad - rewalking"
+  sms_walk
+done
+cp "$SCREEN_DIR/probe-b-conv.png" "$SCREEN_DIR/05-sms-inbox.png"
+rm -f "$SCREEN_DIR"/probe-b-*.png
 
 # Dialer: END home, digits 1 2 3, green key to the system dialer.
 tap_key END; sleep 1
@@ -434,16 +466,39 @@ tap_key DOWN; sleep 1
 tap_key DOWN; sleep 1
 tap_key CENTER; sleep 2; shot 09-calllog
 
-# Compose with multitap: Messaging -> New message -> number -> text -> send.
-tap_key END; sleep 1
-tap_key CENTER; sleep 2
-tap_key RIGHT; sleep 1
-tap_key DOWN; sleep 1
-tap_key CENTER; sleep 2
-tap_key CENTER; sleep 2
-# Sim Create message submenu: row 0 "Message" opens the composer.
-tap_key CENTER; sleep 2
-for d in D0 D7 D7 D0 D0 D9 D0 D0 D1 D2 D3; do tap_key "$d"; sleep 1; done
+# Compose with multitap: Messaging -> Create message -> Message -> number
+# -> text -> send. Same lost-tap hardening as the sms chain (proven: a
+# lost CENTER once stranded the flow on the submenu; the following DOWN
+# then opened Flash message instead of the composer).
+compose_walk() {
+  ensure_fg
+  tap_key END; sleep 1
+  tap_key CENTER; sleep 2; shot probe-c-menu
+  tap_key RIGHT; sleep 1
+  tap_key DOWN; sleep 1
+  tap_key CENTER; sleep 2; shot probe-c-mlist
+  tap_key CENTER; sleep 2; shot probe-c-submenu
+  # Sim Create message submenu: row 0 "Message" opens the composer.
+  tap_key CENTER; sleep 2; shot probe-c-composer
+}
+compose_walk
+for attempt in 1 2; do
+  bad=""
+  cmp -s "$SCREEN_DIR/probe-c-menu.png" "$SCREEN_DIR/probe-c-mlist.png" && bad="$bad mlist"
+  cmp -s "$SCREEN_DIR/probe-c-mlist.png" "$SCREEN_DIR/probe-c-submenu.png" && bad="$bad submenu"
+  cmp -s "$SCREEN_DIR/probe-c-submenu.png" "$SCREEN_DIR/probe-c-composer.png" && bad="$bad composer"
+  [ -z "$bad" ] && break
+  echo "DIAG: compose walk attempt $attempt lost hop(s):$bad - rewalking"
+  compose_walk
+done
+# The first digit must change the frame; if it does not we are not on the
+# composer and the compose shots below are evidence, not proof.
+tap_key D0; sleep 1; shot probe-c-digit
+if cmp -s "$SCREEN_DIR/probe-c-composer.png" "$SCREEN_DIR/probe-c-digit.png"; then
+  echo "DIAG: first digit did not land - compose chain still derailed"
+fi
+rm -f "$SCREEN_DIR"/probe-c-*.png
+for d in D7 D7 D0 D0 D9 D0 D0 D1 D2 D3; do tap_key "$d"; sleep 1; done
 shot 10-compose-number
 # Unified composer: DOWN moves focus from To: to Text: (sim behaviour).
 tap_key DOWN; sleep 1
