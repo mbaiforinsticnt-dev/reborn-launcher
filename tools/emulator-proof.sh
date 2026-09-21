@@ -563,5 +563,16 @@ tap_key D0; sleep 1
 tap_key CENTER; sleep 2; shot 16-alarm-set
 tap_key END; sleep 1
 
+# Calculator: Go to row 5 -> 12 + 3 = 15 (nav keys are the operators).
+tap_key LSK; sleep 2
+for i in 1 2 3 4 5; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 17-calc
+tap_key D1; sleep 1
+tap_key D2; sleep 1
+tap_key UP; sleep 1
+tap_key D3; sleep 1
+tap_key CENTER; sleep 2; shot 18-calc-result
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
