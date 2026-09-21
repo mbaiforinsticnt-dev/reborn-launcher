@@ -151,9 +151,12 @@ public class NokiaUi extends View {
             {"Service messages", "Message filter", "Autom. connection"},
             {"Camera", "Video camera", "Media player", "Radio", "Voice recorder", "Equaliser"},
             {"Games", "Collection", "Memory card", "Downloads"},
-            {"Favourites", "Recently used", "Log", "Contacts", "Contact groups", "New number", "Enter manually"}
+            {"Favourites", "Recently used", "Log", "Contacts", "Contact groups", "New number", "Enter manually"},
+            {"Message", "Flash message", "Audio message", "Templates"},
+            {},
+            {}
     };
-    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps.", "Add recipient"};
+    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps.", "Add recipient", "Create message", "Flash message", "Audio message"};
 
     private int selected = 0;
     private int row = 0;
@@ -823,17 +826,24 @@ public class NokiaUi extends View {
     }
 
     private void selectListItem() {
+        if (listSection == 33) { // Sim createmessage routes
+            if (row == 0) { // Message -> the composer
+                composeNumber.setLength(0);
+                composeTap.clear();
+                composeSent = false;
+                screen = Screen.COMPOSE_NUMBER;
+            } else if (row == 3) openListSection(15); // Templates
+            else openListSection(33 + row); // 34 Flash, 35 Audio
+            return;
+        }
         if (listSection == 32) { // Sim recipient picker: only Contacts navigates
             if (row == 3) { rows = actions.contacts(); row = 0; screen = Screen.CONTACTS; }
             else notice = LIST_ITEMS[32][row] + " opened";
             return;
         }
         if (listSection == 0) {
-            if (row == 0) { // Create message
-                composeNumber.setLength(0);
-                composeTap.clear();
-                composeSent = false;
-                screen = Screen.COMPOSE_NUMBER;
+            if (row == 0) { // Create message -> the sim's submenu page
+                openListSection(33);
             } else if (row == 1) { // Conversations
                 threads = actions.sms();
             rebuildConvos();
@@ -1111,7 +1121,7 @@ public class NokiaUi extends View {
     private float titleH(int h) { return screenH(h) * 0.097f; }
 
     private Bitmap listIconFor(int idx) {
-        if (listSection == 0) {
+        if (listSection == 0 || (listSection == 33 && idx == 0)) {
             if (msgIcons == null) {
                 msgIcons = new Bitmap[MSG_ICON_B64.length];
                 for (int i = 0; i < MSG_ICON_B64.length; i++) {
@@ -1136,6 +1146,47 @@ public class NokiaUi extends View {
             drawItemRows(c, w, h, drafts.size(), i -> drafts.get(i)[1], i -> drafts.get(i)[0]);
             return;
         }
+        if (listSection == 33) { // Sim createmessage: envelope row 0, glyphs, Flash row disabled
+            String[] items = LIST_ITEMS[33];
+            String[] glyphs = {"", "\u2301", "\u2709", "\u2709"};
+            float listTop = statusH(h) + titleH(h);
+            float rowH = (softTop(h) - listTop) / 5f;
+            float padX = w * 0.035f;
+            int disCol = Color.parseColor("#555555"); // sim .disabled
+            for (int i = 0; i < items.length; i++) {
+                float top = listTop + i * rowH;
+                if (i == row) drawSelPill(c, w, top, rowH);
+                int col = i == 1 ? disCol : Color.WHITE;
+                float textX = padX;
+                if (i == 0) {
+                    Bitmap ic = listIconFor(0);
+                    if (ic != null) {
+                        float iconSize = rowH * 0.60f;
+                        float cy = top + rowH / 2f;
+                        android.graphics.Rect dst = new android.graphics.Rect(
+                                (int) padX, (int) (cy - iconSize / 2f),
+                                (int) (padX + iconSize), (int) (cy + iconSize / 2f));
+                        c.drawBitmap(ic, null, dst, p);
+                    }
+                    textX = padX + rowH * 0.60f + w * 0.035f;
+                } else {
+                    p.setTextAlign(Paint.Align.LEFT);
+                    p.setTextSize(w * 0.078f);
+                    p.setColor(col);
+                    c.drawText(glyphs[i], padX + rowH * 0.14f, top + rowH * 0.62f, p);
+                    textX = padX + rowH * 0.60f + w * 0.035f;
+                }
+                p.setTextAlign(Paint.Align.LEFT);
+                p.setFakeBoldText(true);
+                p.setTextSize(w * 0.078f);
+                p.setColor(col);
+                c.drawText(ellipsize(items[i], w - textX - padX, p), textX, top + rowH * 0.46f, p);
+                p.setFakeBoldText(false);
+            }
+            return;
+        }
+        if (listSection == 34) { drawEmpty(c, w, h, "Write flash message"); return; } // sim emptyState
+        if (listSection == 35) { drawEmpty(c, w, h, "Record audio"); return; } // sim emptyState
         String[] items = LIST_ITEMS[listSection];
         drawItemRows(c, w, h, items.length, i -> items[i], null, i -> listIconFor(i));
     }
@@ -2037,6 +2088,7 @@ public class NokiaUi extends View {
                     case 11: case 12: case 13: case 14:
                         return new String[]{"New message", "Inbox view", "Folder details", "Message log", "SIM messages", "Memory status"};
                     case 19: return new String[]{"Sign in", "Saved conversations", "Settings"};
+                    case 34: case 35: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
                     case 20: return new String[]{"Call voice mailbox", "Voice mailbox no.", "Info"};
                     default: return new String[0];
                 }
@@ -2065,6 +2117,7 @@ public class NokiaUi extends View {
                 String centre = "Select";
                 if (listSection == 11) centre = "Edit"; // Drafts
                 else if (listSection >= 12 && listSection <= 16) centre = "Open"; // Outbox/Sent/Saved/Templates/Saved messages
+                else if (listSection == 34 || listSection == 35) centre = ""; // sim soft('Options','','Back')
                 return new String[]{optionsItemsFor(Screen.LIST).length > 0 ? "Options" : "", centre, "Back"};
             }
             case THREADS: return new String[]{"Options", "Open", "Back"};
