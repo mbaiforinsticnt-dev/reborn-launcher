@@ -670,6 +670,14 @@ public class NokiaUi extends View {
         if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT) {
             if (screen == Screen.OPTIONS) {
                 selectCurrent(); // centre/OK equivalent while options open
+            } else if (screen == Screen.LIST && listSection == 40) {
+                // Sim phonememory: left softkey is blank, pressing it does nothing
+            } else if (screen == Screen.LIST && listSection == 43 && noteTexts.isEmpty()) {
+                // Sim: notes-empty left key opens the editor even though the label is blank
+                noteTap.clear();
+                noteEditingExisting = false;
+                textnoteFromView = false;
+                screen = Screen.TEXTNOTE;
             } else if (optionsItemsFor(screen).length > 0) {
                 openOptions();
             } else if (screen == Screen.LIST) {
@@ -4292,7 +4300,7 @@ public class NokiaUi extends View {
         int count = labels.length;
         int visible = Math.min(count, 5);
         float rowH = listHeight / 5f;
-        int first = Math.max(0, Math.min(row - 2, count - visible));
+        int first = Math.max(0, Math.min(row - 4, count - visible));
         float padX = w * 0.035f;
         float iconSize = rowH * 0.60f;
         float textSize = w * 0.075f;
@@ -4350,7 +4358,7 @@ public class NokiaUi extends View {
         float listHeight = listBot - listTop;
         int visible = Math.min(count, 5);
         float rowH = listHeight / 5f;
-        int first = Math.max(0, Math.min(row - 2, count - visible));
+        int first = Math.max(0, Math.min(row - 4, count - visible));
         float padX = w * 0.035f;
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         for (int i = 0; i < visible; i++) {
@@ -4874,7 +4882,7 @@ public class NokiaUi extends View {
         int count = optionsItems.length;
         int visible = Math.min(count, 7);
         float rowH = (bot - listTop) / 7f;
-        int first = Math.max(0, Math.min(optionsSel - 3, count - visible));
+        int first = Math.max(0, Math.min(optionsSel - 6, count - visible));
         for (int i = 0; i < visible; i++) {
             int idx = first + i;
             float ry = listTop + i * rowH;
@@ -5080,7 +5088,10 @@ public class NokiaUi extends View {
                 else if (listSection == 41) centre = calNotes.isEmpty() ? "Make note" : "View"; // sim calendar centre
                 else if (listSection == 42) centre = todoNotes.isEmpty() ? "Add" : "Open"; // sim to-do centre
                 else if (listSection == 43) centre = noteTexts.isEmpty() ? "Add" : "View"; // sim notes centre
-                return new String[]{optionsItemsFor(Screen.LIST).length > 0 ? "Options" : "", centre, "Back"};
+                String left = optionsItemsFor(Screen.LIST).length > 0 ? "Options" : "";
+                if (listSection == 43 && noteTexts.isEmpty()) left = ""; // sim notes-empty soft('','Add','Back')
+                if (listSection == 40) left = ""; // sim phonememory soft('','Select','Back')
+                return new String[]{left, centre, "Back"};
             }
             case THREADS: return new String[]{"Options", "Open", "Back"};
             case CONVERSATION: return new String[]{"Options", "Open", "Back"};
