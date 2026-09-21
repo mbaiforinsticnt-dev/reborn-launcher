@@ -293,6 +293,21 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     }
 
     @Override
+    public void clearDrafts() {
+        getSharedPreferences("c2reborn", MODE_PRIVATE).edit().putString("drafts", "").apply();
+    }
+
+    @Override
+    public int getProfile() {
+        return getSharedPreferences("c2reborn", MODE_PRIVATE).getInt("profile", 0);
+    }
+
+    @Override
+    public void setProfile(int index) {
+        getSharedPreferences("c2reborn", MODE_PRIVATE).edit().putInt("profile", index).apply();
+    }
+
+    @Override
     public boolean addContact(String name, String number) {
         return PhoneStore.insertContact(this, name, number); // contactsObserver refreshes the cache
     }
