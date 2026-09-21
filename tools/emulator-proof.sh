@@ -818,5 +818,45 @@ tap_key CENTER; sleep 2; shot 87-bluetooth-prompt
 tap_key RSK; sleep 2
 tap_key END; sleep 1
 
+# Symbol flyout + picker + note mark mode (184): textnote editor -> flyout ->
+# emoji grid -> back -> character grid -> insert; editing options -> Copy mark
+# mode; composer 'Insert symbol' -> character grid (no flyout).
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2
+for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2
+tap_key LSK; sleep 2
+tap_key CENTER; sleep 2
+tap_key LSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 88-symbol-flyout
+tap_key CENTER; sleep 2; shot 89-emoji-grid
+tap_key RSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 90-symbol-grid
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2; shot 91-symbol-inserted
+tap_key LSK; sleep 2
+for i in 1 2 3; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2
+tap_key CENTER; sleep 2; shot 92-mark-dialog
+tap_key CENTER; sleep 1
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2; shot 93-mark-copy
+tap_key END; sleep 1
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2
+tap_key CENTER; sleep 2
+tap_key CENTER; sleep 2
+tap_key DOWN; sleep 1
+tap_key LSK; sleep 2
+for i in 1 2 3 4 5 6 7; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 94-composer-symbol-grid
+tap_key CENTER; sleep 2; shot 95-composer-symbol-inserted
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
