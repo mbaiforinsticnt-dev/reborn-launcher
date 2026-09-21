@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, TODOEDIT, TEXTNOTE, NOTEVIEW
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS
     }
 
     public interface Actions {
@@ -240,9 +240,10 @@ public class NokiaUi extends View {
             {"Free memory  5.8 MB", "Gallery  11.3 MB", "Messaging  36 MB", "Applications  6.6 MB", "Organiser  1.2 MB"},
             {},
             {},
-            {}
+            {},
+            {"Normal timer", "Interval timer", "Settings"}
     };
-    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone", "Calendar", "To-do list", "Notes"};
+    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone", "Calendar", "To-do list", "Notes", "Countdown"};
 
     private static final String[] CALTYPE_ROWS = {"Reminder", "Meeting", "Call", "Birthday", "Anniversary", "Memo"};
 
@@ -286,6 +287,19 @@ public class NokiaUi extends View {
     private boolean noteDeleteFromView = false;
     private int deleteNotesConfirm = 0;
     private int caltypesFrom = 41; // LIST section the note-type picker was opened from
+    // Sim countdown/interval timer state.
+    private int timerField = 0;
+    private final String[] timerParts = {"00", "00", "00"};
+    private String timerValue = "";
+    private long timerEndsAt = 0L;
+    private boolean countdownAutoRepeat = false;
+    private String countdownTone = "Clock alert";
+    private int intervalRound = 1;
+    private boolean intervalRunning = false;
+    private String intervalPhase = "Interval";
+    private int intervalsLeft = 0;
+    private long intervalEndsAt = 0L;
+    private final Multitap timerTap = new Multitap();
     private final StringBuilder contactNumber = new StringBuilder();
     private int contactField = 0;
     private boolean composeSent = false;
@@ -394,6 +408,10 @@ public class NokiaUi extends View {
             case TODOEDIT: drawTodoEdit(c, w, h); break;
             case TEXTNOTE: drawTextNote(c, w, h); break;
             case NOTEVIEW: drawNoteView(c, w, h); break;
+            case NORMALTIMER: drawNormalTimer(c, w, h); break;
+            case TIMERNOTE: drawTimerNote(c, w, h); break;
+            case INTERVALTIMER: drawIntervalTimer(c, w, h); break;
+            case CDSETTINGS: drawCdSettings(c, w, h); break;
             case VIDEOREC: drawVideoRec(c, w, h); break;
             case RADIO: drawRadio(c, w, h); break;
             case VOICEREC: drawVoiceRec(c, w, h); break;
@@ -618,6 +636,17 @@ public class NokiaUi extends View {
                 noteTap.press(d);
                 handler.postDelayed(commitTick, 1600);
                 break;
+            case NORMALTIMER: {
+                // Sim: each field keeps the last two digits typed.
+                String v = timerParts[timerField] + d;
+                timerParts[timerField] = v.substring(v.length() - 2);
+                break;
+            }
+            case TIMERNOTE:
+                handler.removeCallbacks(commitTick);
+                timerTap.press(d);
+                handler.postDelayed(commitTick, 1600);
+                break;
             default: break;
         }
     }
@@ -830,7 +859,8 @@ public class NokiaUi extends View {
                 break;
             case CONFIRM_DEL: screen = Screen.LIST; listSection = 23; row = 2; break;
             case LIST:
-                if (listSection == 41) { listSection = 1; row = 1; }
+                if (listSection == 44) { listSection = 1; row = 6; }
+                else if (listSection == 41) { listSection = 1; row = 1; }
                 else if (listSection == 42) { listSection = 1; row = 3; }
                 else if (listSection == 43) { listSection = 1; row = 4; }
                 else if (listSection == 40) { screen = Screen.MEMSTATUS; row = 0; }
@@ -856,6 +886,15 @@ public class NokiaUi extends View {
                 else if (textnoteFromView && noteEditingExisting) { textnoteFromView = false; screen = Screen.NOTEVIEW; }
                 else { screen = Screen.LIST; listSection = 43; }
                 break;
+            case NORMALTIMER: screen = Screen.LIST; listSection = 44; row = 0; break;
+            case TIMERNOTE:
+                // Sim right key: delete a char first, Back only when empty.
+                handler.removeCallbacks(commitTick);
+                if (timerTap.preview().length() > 0) timerTap.backspace();
+                else screen = Screen.NORMALTIMER;
+                break;
+            case INTERVALTIMER: screen = Screen.LIST; listSection = 44; row = 1; break;
+            case CDSETTINGS: screen = Screen.LIST; listSection = 44; row = 2; break;
             case CALVIEW: screen = Screen.LIST; listSection = 41; row = 0; break;
             case NOTEVIEW: screen = Screen.LIST; listSection = 43; row = Math.min(noteIndex, Math.max(noteTexts.size() - 1, 0)); break;
             case MEMSTATUS: screen = memFrom; if (memFrom != Screen.LIST) row = 0; break;
@@ -903,6 +942,15 @@ public class NokiaUi extends View {
     }
 
     private void move(int delta) {
+        if (screen == Screen.NORMALTIMER) {
+            // Sim: UP/DOWN rolls the focused field (hours 0-99, else 0-59).
+            int max = timerField == 0 ? 99 : 59;
+            int v = Integer.parseInt(timerParts[timerField]);
+            v = delta > 0 ? (v + 1) % (max + 1) : (v + max) % (max + 1);
+            timerParts[timerField] = (v < 10 ? "0" : "") + v;
+            invalidate();
+            return;
+        }
         if (screen == Screen.PLAYER) { // sim: UP/DOWN change the volume
             String[] ps = player();
             int v = Integer.parseInt(ps[3]);
@@ -935,6 +983,11 @@ public class NokiaUi extends View {
     }
 
     private void moveHorizontal(int delta) {
+        if (screen == Screen.NORMALTIMER) {
+            timerField = (timerField + (delta > 0 ? 1 : 2)) % 3; // sim field nav
+            invalidate();
+            return;
+        }
         if (screen == Screen.PLAYER) { // sim: LEFT/RIGHT change the track (only one here)
             String[] ps = player();
             ps[0] = "0";
@@ -964,6 +1017,8 @@ public class NokiaUi extends View {
                 if (listSection == 43) return noteTexts.size();
                 return LIST_ITEMS[listSection].length;
             case CALTYPES: return CALTYPE_ROWS.length;
+            case INTERVALTIMER: return 4;
+            case CDSETTINGS: return 2;
             case THREADS: return convos.size();
             case CONVERSATION: return Math.max(convoMsgs.size(), 1);
             case CALLLOG: case CONTACTS: return rows.size();
@@ -1150,6 +1205,44 @@ public class NokiaUi extends View {
                     textnoteFromView = true;
                     screen = Screen.TEXTNOTE;
                 }
+                break;
+            case NORMALTIMER:
+                // Sim OK: the value is saved and the note page opens.
+                timerValue = timerParts[0] + ":" + timerParts[1] + ":" + timerParts[2];
+                timerTap.clear();
+                screen = Screen.TIMERNOTE;
+                break;
+            case TIMERNOTE:
+                // Sim Start: arms the countdown and lands on the organiser.
+                handler.removeCallbacks(commitTick);
+                timerTap.commit();
+                int secs = Integer.parseInt(timerParts[0]) * 3600 + Integer.parseInt(timerParts[1]) * 60 + Integer.parseInt(timerParts[2]);
+                timerValue = timerParts[0] + ":" + timerParts[1] + ":" + timerParts[2];
+                timerEndsAt = secs > 0 ? System.currentTimeMillis() + secs * 1000L : 0L;
+                timerTap.clear();
+                armTimerTick();
+                listSection = 1; screen = Screen.LIST; row = 5;
+                break;
+            case INTERVALTIMER:
+                if (row == 0) {
+                    intervalRound = intervalRound % 10 + 1; // sim cycles 1..10
+                } else if (row == 3) {
+                    if (intervalRunning) {
+                        intervalRunning = false;
+                        notice = "Interval timer stopped"; // sim notice verbatim
+                    } else {
+                        intervalRunning = true;
+                        intervalPhase = "Interval";
+                        intervalsLeft = intervalRound;
+                        intervalEndsAt = System.currentTimeMillis() + 60000L;
+                        notice = "Interval timer started"; // sim notice verbatim
+                        armTimerTick();
+                    }
+                }
+                break;
+            case CDSETTINGS:
+                if (row == 0) countdownTone = countdownTone.equals("Clock alert") ? "Nokia tune" : "Clock alert";
+                else countdownAutoRepeat = !countdownAutoRepeat;
                 break;
             case MEMSTATUS:
                 // Sim route map: memorystatus -> phonememory / memorycarddetail.
@@ -1522,6 +1615,11 @@ public class NokiaUi extends View {
                 screen = Screen.CALC;
                 return;
             }
+            if (row == 6) { // sim organiser row 6 opens the countdown menu
+                listSection = 44;
+                row = 0;
+                return;
+            }
             if (row == 7) { // sim organiser row 7 opens the stopwatch page
                 screen = Screen.STOPWATCH;
                 return;
@@ -1535,6 +1633,12 @@ public class NokiaUi extends View {
         }
         if (listSection == 42) { // Sim to-do centre: Add when empty; 'Open' is a dead key with notes
             if (todoNotes.isEmpty()) { noteTap.clear(); screen = Screen.TODOEDIT; }
+            return;
+        }
+        if (listSection == 44) { // Sim countdown routes
+            if (row == 0) screen = Screen.NORMALTIMER;
+            else if (row == 1) screen = Screen.INTERVALTIMER;
+            else screen = Screen.CDSETTINGS;
             return;
         }
         if (listSection == 43) { // Sim notes centre: Add when empty, View otherwise
@@ -1918,7 +2022,14 @@ public class NokiaUi extends View {
         }
         String[] items = LIST_ITEMS[listSection];
         LabelAt subs = null;
-        if (listSection == 1) subs = i -> i == 0 ? (alarm()[0].equals("1") ? "On" : "Off") : null; // sim organiser row 0 sub: alarm On/Off
+        if (listSection == 1) subs = i -> {
+            if (i == 0) return alarm()[0].equals("1") ? "On" : "Off"; // sim alarm sub
+            if (i == 5 && timerEndsAt > System.currentTimeMillis()) { // sim countdown sub
+                long left = (timerEndsAt - System.currentTimeMillis() + 999) / 1000;
+                return String.format(java.util.Locale.US, "%02d:%02d:%02d", left / 3600, (left % 3600) / 60, left % 60);
+            }
+            return null;
+        };
         else if (listSection == 37) subs = i -> i == 1 ? "Dark.nth" : null; // sim theme sub
         drawItemRows(c, w, h, items.length, i -> items[i], subs, i -> listIconFor(i));
     }
@@ -2874,6 +2985,135 @@ public class NokiaUi extends View {
         }
     }
 
+    // Sim v4.89 countdown/interval ticker: the sim's 1s interval checks the
+    // countdown on every page and redraws the interval timer while it runs.
+    private boolean timerTickArmed = false;
+    private final Runnable timerTick = new Runnable() {
+        @Override public void run() {
+            timerTickArmed = false;
+            long now = System.currentTimeMillis();
+            if (intervalRunning && now >= intervalEndsAt) {
+                if (intervalPhase.equals("Interval")) {
+                    intervalPhase = "Rest";
+                    intervalEndsAt = now + 30000L;
+                } else if (--intervalsLeft > 0) {
+                    intervalPhase = "Interval";
+                    intervalEndsAt = now + 60000L;
+                } else {
+                    intervalRunning = false;
+                    notice = "Interval timer finished"; // sim notice verbatim
+                }
+                invalidate();
+            }
+            if (timerEndsAt > 0 && now >= timerEndsAt) {
+                String[] tp = timerValue.split(":");
+                int dur = Integer.parseInt(tp[0]) * 3600 + Integer.parseInt(tp[1]) * 60 + Integer.parseInt(tp[2]);
+                if (countdownAutoRepeat && dur > 0) {
+                    timerEndsAt = now + dur * 1000L;
+                    notice = "Timer repeated"; // sim notice verbatim
+                } else {
+                    timerEndsAt = 0L;
+                    notice = "Countdown finished"; // sim notice verbatim
+                }
+                invalidate();
+            }
+            if (screen == Screen.INTERVALTIMER && intervalRunning) invalidate();
+            if (intervalRunning || timerEndsAt > 0) armTimerTick();
+        }
+    };
+    private void armTimerTick() {
+        if (!timerTickArmed) {
+            timerTickArmed = true;
+            handler.postDelayed(timerTick, 1000);
+        }
+    }
+
+    private static String fmtTime(long sec) { // sim fmtTime: MM:SS
+        sec = Math.max(0, sec);
+        return String.format(java.util.Locale.US, "%02d:%02d", sec / 60, sec % 60);
+    }
+
+    // Sim v4.89 normaltimer page: 'Set timer' + the .dialNumber entry box
+    // (gradient panel, #777 border, right-aligned fields, #456 field focus).
+    private void drawNormalTimer(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Set timer");
+        float ux = w / 240f;
+        float sy = screenH(h) / 253f;
+        float top = statusH(h) + titleH(h);
+        float boxH = 140 * sy;
+        android.graphics.LinearGradient grad = new android.graphics.LinearGradient(
+                0, top, 0, top + boxH, Color.parseColor("#DDDDDD"), Color.parseColor("#AAAAAA"), android.graphics.Shader.TileMode.CLAMP);
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(grad);
+        c.drawRoundRect(new android.graphics.RectF(0, top, w, top + boxH), 5 * ux, 5 * ux, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1f, ux));
+        p.setColor(Color.parseColor("#777777"));
+        c.drawRoundRect(new android.graphics.RectF(0, top, w, top + boxH), 5 * ux, 5 * ux, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextSize(34 * ux);
+        p.setTextAlign(Paint.Align.RIGHT);
+        float baseY = top + 62 * sy + 34 * ux;
+        String joined = timerParts[0] + ":" + timerParts[1] + ":" + timerParts[2];
+        float rightX = w - 10 * ux;
+        // Draw right-aligned: measure backwards so the focused field's
+        // highlight sits exactly behind its two digits.
+        float[] widths = new float[3];
+        float colonW = p.measureText(":");
+        for (int i = 0; i < 3; i++) widths[i] = p.measureText(timerParts[i]);
+        float x = rightX;
+        for (int i = 2; i >= 0; i--) {
+            if (i == timerField) {
+                p.setColor(Color.parseColor("#445566"));
+                c.drawRect(x - widths[i], baseY - 34 * ux * 0.85f, x, baseY + 34 * ux * 0.2f, p);
+                p.setColor(Color.WHITE);
+            } else {
+                p.setColor(Color.parseColor("#111111"));
+            }
+            c.drawText(timerParts[i], x, baseY, p);
+            x -= widths[i];
+            if (i > 0) {
+                p.setColor(Color.parseColor("#111111"));
+                c.drawText(":", x, baseY, p);
+                x -= colonW;
+            }
+        }
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // Sim v4.89 timernote page: 'Note for timer:' + the note entry box.
+    private void drawTimerNote(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Note for timer:");
+        drawNoteEditBox(c, w, h, null, timerTap.preview(), true);
+    }
+
+    // Sim v4.89 intervaltimer page: title + four rows (rounds, fixed times,
+    // start/status row).
+    private void drawIntervalTimer(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Interval timer");
+        String status;
+        if (intervalRunning) {
+            long left = Math.max(0, (intervalEndsAt - System.currentTimeMillis() + 999) / 1000);
+            status = intervalPhase + "  " + fmtTime(left) + "  (" + intervalsLeft + " left)";
+        } else {
+            status = "Start timer";
+        }
+        final String st = status;
+        drawItemRows(c, w, h, 4, i -> i == 0 ? "Intervals  " + intervalRound
+                : i == 1 ? "Interval time  00:01:00"
+                : i == 2 ? "Rest time  00:00:30" : st, null, null);
+    }
+
+    // Sim v4.89 countdownsettings page: 'Timer settings' + two toggle rows.
+    private void drawCdSettings(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Timer settings");
+        drawItemRows(c, w, h, 2, i -> i == 0 ? "Timer tone  " + countdownTone
+                : "Auto-repeat  " + (countdownAutoRepeat ? "On" : "Off"), null, null);
+    }
+
     // Sim v4.89 noteStamp(): 'HH:MM, Ddd DD-MM-YYYY'.
     private String noteStamp() {
         return new java.text.SimpleDateFormat("HH:mm, E dd-MM-yyyy", java.util.Locale.ENGLISH).format(new java.util.Date());
@@ -2902,6 +3142,7 @@ public class NokiaUi extends View {
             case TODOEDIT: return "Todoedit"; // sim title() fallback quirk
             case TEXTNOTE: return "Textnote"; // sim title() fallback quirk
             case NOTEVIEW: return "Noteview"; // sim title() fallback quirk
+            case INTERVALTIMER: return "Intervaltimer"; // sim title() fallback quirk
             default: return "Details";
         }
     }
@@ -3722,6 +3963,7 @@ public class NokiaUi extends View {
                 else if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; screen = Screen.READ; }
                 else if (from == Screen.CONTACTS_HOME || from == Screen.CALLLOG_HOME) selectCurrent();
                 else if (from == Screen.LIST) selectListItem();
+                else if (from == Screen.INTERVALTIMER) notice = "Open selected"; // sim generic notice
                 else if (from == Screen.APPDOWNLOADS) appDownloadsOpen();
                 else if (from == Screen.MUSICLIB || from == Screen.ALLSONGS || from == Screen.LIBLIST) { optionsFrom = from; selectCurrent(); }
                 break;
@@ -4113,7 +4355,7 @@ public class NokiaUi extends View {
             case PLAYER: return new String[]{"Music library", "Now playing", "Shuffle", "Repeat", "Equaliser", "Settings"}; // sim opts.player
             case EQUALISER: return new String[]{"Activate", "Edit", "Rename"}; // sim opts.equaliser
             case MUSICLIB: case ALLSONGS: case LIBLIST: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
-            case CALNOTE: case TODOEDIT: case CALVIEW: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
+            case CALNOTE: case TODOEDIT: case CALVIEW: case INTERVALTIMER: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
             case TEXTNOTE:
                 // Sim currentOptions: 'Clear text' only exists once there is text.
                 if (noteTap.text().length() > 0)
@@ -4184,6 +4426,10 @@ public class NokiaUi extends View {
                 return new String[]{"Options", "Save", noteTap.preview().length() > 0 ? "Clear" : "Back"};
             case CALVIEW: return new String[]{"Options", "Edit", "Back"};
             case NOTEVIEW: return new String[]{"Options", "Edit", "Back"};
+            case NORMALTIMER: return new String[]{"", "OK", "Back"};
+            case TIMERNOTE: return new String[]{"", "Start", timerTap.preview().length() > 0 ? "Clear" : "Back"};
+            case INTERVALTIMER: return new String[]{"Options", intervalRunning ? "Stop" : "Change", "Back"};
+            case CDSETTINGS: return new String[]{"", "Change", "Back"};
             case VOICEREC: return new String[]{"Options", voiceRecording ? "Stop" : "Record", "Back"};
             case BROWSER: return new String[]{"Options", "Open", "Back"}; // sim soft('Options','Open','Back')
             case URLENTRY: return new String[]{"Options", "Go", urlEntry.length() > 0 ? "Clear" : "Back"}; // sim label; RSK still backs out, as in the sim
