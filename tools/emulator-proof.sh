@@ -856,6 +856,15 @@ tap_key LSK; sleep 2
 for i in 1 2 3 4 5 6 7; do tap_key DOWN; sleep 1; done
 tap_key CENTER; sleep 2; shot 94-composer-symbol-grid
 tap_key CENTER; sleep 2; shot 95-composer-symbol-inserted
+# (185) Composer quirks: 'Editing options' shows only a notice;
+# 'Writing language' opens the shared list with Back -> composer.
+tap_key LSK; sleep 2
+for i in 1 2 3 4 5 6 7 8; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 96-composer-editing-notice
+tap_key LSK; sleep 2
+for i in 1 2 3 4 5 6 7 8 9; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 97-composer-writing-language
+tap_key RSK; sleep 2
 tap_key END; sleep 1
 
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
