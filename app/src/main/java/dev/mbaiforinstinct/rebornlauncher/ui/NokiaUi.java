@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER
     }
 
     public interface Actions {
@@ -40,6 +40,8 @@ public class NokiaUi extends View {
         void setProfile(int index);
         String[] getAlarm();
         void setAlarm(String[] state);
+        String[] getPlayer();
+        void setPlayer(String[] state);
         boolean addContact(String name, String number);
         boolean updateContact(String oldName, String oldNumber, String newName, String newNumber);
         boolean deleteContact(String name, String number);
@@ -287,6 +289,30 @@ public class NokiaUi extends View {
     private boolean videoRecording = false;
     private long videoStartedAt = 0L;
     private boolean videoFromMedia = false;
+    // Sim v4.89 browser pages: prototype browser state persists across visits.
+    private String browserUrl = "https://www.nokia.com/";
+    private String browserTitle = "Nokia.com";
+    private String urlEntry = "";
+    private boolean appDlFromApps = false;
+    // Sim v4.89 media player navigation state (player state itself is
+    // persisted through actions.getPlayer/setPlayer like the alarm).
+    private int playerFrom = 0; // 0=Go to, 1=Media list, 2=Media menu, 3=All songs
+    private boolean musicFromPlayer = false;
+    private boolean eqFromPlayer = false;
+    private int libKind = 0; // 0 Playlists, 1 Artists, 2 Albums, 3 Genres, 4 Videos
+    private long playerTickBase = 0L;
+    private Bitmap playerVolIcon = null;
+    private Bitmap musicNoteIcon = null;
+    private static final String[] EQ_ROWS = {"Normal", "Pop", "Rock", "Jazz", "Classical"};
+    private static final String[] MEDIA_MENU = {"Go to Media player", "All songs", "Playlists", "Artists", "Albums", "Genres", "Videos"};
+    private static final String[][] LIB_LISTS = {
+            {"Recently played", "Most played", "Recently added"},
+            {"Emulator"},
+            {"S40 Demo"},
+            {"Other"},
+            {"Demo video.3gp"},
+    };
+    private static final String[] LIB_TITLES = {"Playlists", "Artists", "Albums", "Genres", "Videos"};
     private final List<String[]> drafts = new ArrayList<>();
 
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -327,6 +353,14 @@ public class NokiaUi extends View {
             case CAMERA: drawCamera(c, w, h); break;
             case ITEMDETAIL: drawItemDetail(c, w, h); break;
             case VIDEOREC: drawVideoRec(c, w, h); break;
+            case BROWSER: drawBrowser(c, w, h); break;
+            case URLENTRY: drawUrlEntry(c, w, h); break;
+            case APPDOWNLOADS: drawAppDownloads(c, w, h); break;
+            case PLAYER: drawPlayer(c, w, h); break;
+            case MUSICLIB: drawMusicLib(c, w, h); break;
+            case ALLSONGS: drawAllSongs(c, w, h); break;
+            case LIBLIST: drawLibList(c, w, h); break;
+            case EQUALISER: drawEqualiser(c, w, h); break;
             case CONFIRM_DEL: drawConfirmDelete(c, w, h); break;
             case THREADS: drawThreads(c, w, h); break;
             case CONVERSATION: drawConversation(c, w, h); break;
@@ -672,6 +706,28 @@ public class NokiaUi extends View {
                 if (videoFromMedia) { screen = Screen.LIST; listSection = 29; row = 1; }
                 else { screen = Screen.GOTO; row = 4; }
                 break;
+            case BROWSER: screen = Screen.GOTO; row = 6; break;
+            case URLENTRY: screen = Screen.BROWSER; break;
+            case APPDOWNLOADS:
+                if (appDlFromApps) { screen = Screen.LIST; listSection = 30; row = 3; }
+                else screen = Screen.BROWSER;
+                break;
+            case PLAYER:
+                if (playerFrom == 1) { screen = Screen.LIST; listSection = 29; row = 2; }
+                else if (playerFrom == 2) screen = Screen.MUSICLIB;
+                else if (playerFrom == 3) screen = Screen.ALLSONGS;
+                else { screen = Screen.GOTO; row = 7; }
+                break;
+            case MUSICLIB:
+                if (musicFromPlayer) { musicFromPlayer = false; screen = Screen.PLAYER; }
+                else { screen = Screen.LIST; listSection = 29; row = 2; }
+                break;
+            case ALLSONGS: screen = Screen.MUSICLIB; row = 1; break;
+            case LIBLIST: screen = Screen.MUSICLIB; row = libKind + 2; break;
+            case EQUALISER:
+                if (eqFromPlayer) { eqFromPlayer = false; screen = Screen.PLAYER; }
+                else { screen = Screen.LIST; listSection = 29; row = 5; }
+                break;
             case PROFILES:
                 if (profilesFromSettings) {
                     profilesFromSettings = false;
@@ -726,6 +782,14 @@ public class NokiaUi extends View {
     }
 
     private void move(int delta) {
+        if (screen == Screen.PLAYER) { // sim: UP/DOWN change the volume
+            String[] ps = player();
+            int v = Integer.parseInt(ps[3]);
+            v = delta < 0 ? Math.min(10, v + 1) : Math.max(0, v - 1);
+            ps[3] = String.valueOf(v);
+            actions.setPlayer(ps);
+            return;
+        }
         if (screen == Screen.CALC) { calcOperator(delta < 0 ? "+" : "\u2212"); return; } // sim: UP=+, DOWN=-
         if (screen == Screen.OPTIONS) {
             if (optionsItems.length > 0) optionsSel = (optionsSel + delta + optionsItems.length) % optionsItems.length;
@@ -750,6 +814,12 @@ public class NokiaUi extends View {
     }
 
     private void moveHorizontal(int delta) {
+        if (screen == Screen.PLAYER) { // sim: LEFT/RIGHT change the track (only one here)
+            String[] ps = player();
+            ps[0] = "0";
+            actions.setPlayer(ps);
+            return;
+        }
         if (screen == Screen.CALC) { calcOperator(delta < 0 ? "\u00D7" : "\u00F7"); return; } // sim: LEFT=x, RIGHT=/
         if (screen == Screen.MENU) {
             selected = (selected + delta + MENU_ITEMS.length) % MENU_ITEMS.length;
@@ -761,6 +831,11 @@ public class NokiaUi extends View {
             case GOTO: return GOTO_ROWS.length;
             case PROFILES: return PROFILE_ROWS.length;
             case ALARM: return 5;
+            case APPDOWNLOADS: return 2;
+            case MUSICLIB: return MEDIA_MENU.length;
+            case ALLSONGS: return 1;
+            case LIBLIST: return LIB_LISTS[libKind].length;
+            case EQUALISER: return EQ_ROWS.length;
             case LIST: return listSection == 11 ? drafts.size() : LIST_ITEMS[listSection].length;
             case THREADS: return convos.size();
             case CONVERSATION: return Math.max(convoMsgs.size(), 1);
@@ -813,6 +888,45 @@ public class NokiaUi extends View {
                 if (videoRecording) videoStartedAt = System.currentTimeMillis();
                 else notice = "Recording saved";
                 break;
+            case BROWSER:
+                // Sim: centre 'Open' has no handler on the browser page.
+                break;
+            case URLENTRY:
+                // Sim OK 'Go': only a non-trivial address navigates.
+                if (urlEntry.length() > 7) {
+                    browserUrl = urlEntry;
+                    browserTitle = "Web page";
+                    screen = Screen.BROWSER;
+                } else notice = "Enter web address";
+                break;
+            case APPDOWNLOADS:
+                appDownloadsOpen();
+                break;
+            case PLAYER:
+                // Sim: centre key has no handler on the player page.
+                break;
+            case MUSICLIB:
+                if (row == 0) { playerFrom = 2; screen = Screen.PLAYER; }
+                else if (row == 1) { screen = Screen.ALLSONGS; row = 0; }
+                else { libKind = row - 2; screen = Screen.LIBLIST; row = 0; }
+                break;
+            case ALLSONGS:
+                // Sim OK: play track 0 from the top, then show the player.
+                startPlayback();
+                playerFrom = 3;
+                screen = Screen.PLAYER;
+                break;
+            case LIBLIST:
+                // Sim: centre key on the library lists is inert.
+                break;
+            case EQUALISER: {
+                // Sim OK: set the preset, notice '<preset> activated'.
+                String[] ps = player();
+                ps[6] = EQ_ROWS[row];
+                actions.setPlayer(ps);
+                notice = EQ_ROWS[row] + " activated";
+                break;
+            }
             case CONFIRM_DEL:
                 deleteAllMessages();
                 break;
@@ -1110,6 +1224,23 @@ public class NokiaUi extends View {
         if (listSection == 29 && row == 1) { // sim media row 1 opens the video recorder
             videoFromMedia = true;
             screen = Screen.VIDEOREC;
+            return;
+        }
+        if (listSection == 29 && row == 2) { // sim media row 2 opens the media player
+            playerFrom = 1;
+            screen = Screen.PLAYER;
+            return;
+        }
+        if (listSection == 29 && row == 5) { // sim media row 5 opens the equaliser
+            eqFromPlayer = false;
+            screen = Screen.EQUALISER;
+            row = eqIndex();
+            return;
+        }
+        if (listSection == 30 && row == 3) { // sim apps row 3 opens the downloads page
+            appDlFromApps = true;
+            screen = Screen.APPDOWNLOADS;
+            row = 0;
             return;
         }
         if (listSection == 1) {
@@ -1767,6 +1898,273 @@ public class NokiaUi extends View {
         p.setTextAlign(Paint.Align.LEFT);
     }
 
+    // Sim v4.89 browser page: title + .browserAddress bar (#eee, #111, 12px,
+    // padding 3px 6px) + .browserPage (padding 10px, 13px, line-height 1.7):
+    // bold page title, blank line, then the page blurb.
+    private void drawBrowser(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Nokia Browser");
+        float ux = w / 240f;
+        float top = statusH(h) + titleH(h);
+        float barH = 12 * ux * 1.2f + 6 * ux;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        c.drawRect(0, top, w, top + barH, p);
+        p.setColor(Color.parseColor("#111111"));
+        p.setTextSize(12 * ux);
+        c.drawText(browserUrl, 6 * ux, top + barH - 5 * ux, p);
+        float y = top + barH + 10 * ux;
+        float line = 13 * ux * 1.7f;
+        p.setColor(Color.WHITE);
+        p.setTextSize(13 * ux);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        y += line;
+        c.drawText(browserTitle, 10 * ux, y, p);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+        y += 2 * line;
+        if (browserUrl.contains("bookmarks")) {
+            c.drawText("Nokia.com", 10 * ux, y, p);
+            y += line;
+            c.drawText("Ovi Store", 10 * ux, y, p);
+            y += line;
+            c.drawText("Search", 10 * ux, y, p);
+        } else {
+            c.drawText("Page loaded in prototype browser", 10 * ux, y, p);
+            y += line;
+            c.drawText(browserUrl, 10 * ux, y, p);
+        }
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // Sim v4.89 urlentry page: title + .noteEdit box (#eef3f4, 2px #2689b4
+    // border, margin 18px 10px, padding 10px) with the 'Web address:' label,
+    // the entry text and the caret.
+    private void drawUrlEntry(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Go to address");
+        float ux = w / 240f;
+        float top = statusH(h) + titleH(h);
+        android.graphics.RectF box = new android.graphics.RectF(
+                10 * ux, top + 18 * ux, w - 10 * ux, top + 18 * ux + 100 * ux);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEF3F4"));
+        c.drawRect(box, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2 * ux);
+        p.setColor(Color.parseColor("#2689B4"));
+        c.drawRect(box, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#35637A"));
+        p.setTextSize(12 * ux);
+        c.drawText("Web address:", box.left + 10 * ux, box.top + 22 * ux, p);
+        p.setColor(Color.parseColor("#111111"));
+        p.setTextSize(14 * ux);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        float ty = box.top + 22 * ux + 10 * ux + 14 * ux;
+        c.drawText(urlEntry, box.left + 10 * ux, ty, p);
+        // Sim caret: 2px #111 left border, 14px tall, right after the text.
+        float caretX = box.left + 10 * ux + p.measureText(urlEntry) + 3 * ux;
+        p.setStrokeWidth(2 * ux);
+        c.drawLine(caretX, ty - 11 * ux, caretX, ty + 3 * ux, p);
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // Sim v4.89 appdownloads page: title + the two download rows, soft
+    // ('','Open','Back').
+    private void drawAppDownloads(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Downloads");
+        String[] labels = {"Application downloads", "Game downloads"};
+        drawItemRows(c, w, h, labels.length, i -> labels[i], null, i -> genericIcon());
+    }
+
+    // Sim OK on appdownloads: sets the detail fields but lands on the browser
+    // page (frozen-sim behavior, kept verbatim).
+    private void appDownloadsOpen() {
+        itemDetailTitle = "Downloads";
+        itemDetailText = row == 0
+                ? "http://go.store.ovi.mobi/entry/van/apps/C2-01"
+                : "http://go.store.ovi.mobi/entry/van/games/C2-01";
+        screen = Screen.BROWSER;
+    }
+
+    // Sim v4.89 player state, persisted like the alarm:
+    // [track, playing, elapsed, volume, shuffle, repeat, equaliser].
+    private String[] player() { return actions.getPlayer(); }
+
+    private int eqIndex() {
+        String eq = player()[6];
+        for (int i = 0; i < EQ_ROWS.length; i++) if (EQ_ROWS[i].equals(eq)) return i;
+        return 0;
+    }
+
+    // Sim playerSeconds(): stored elapsed plus live ticks while playing,
+    // capped at the 90-second demo track; reaching the end stops playback.
+    private long playerSeconds() {
+        String[] ps = player();
+        long e = (long) Double.parseDouble(ps[2]);
+        if (!ps[1].equals("1")) return e;
+        e += (System.currentTimeMillis() - playerTickBase) / 1000;
+        if (e >= 90) {
+            ps[1] = "0";
+            ps[2] = "0";
+            actions.setPlayer(ps);
+            return 0;
+        }
+        return e;
+    }
+
+    private void startPlayback() {
+        String[] ps = player();
+        ps[0] = "0";
+        ps[1] = "1";
+        ps[2] = "0";
+        actions.setPlayer(ps);
+        playerTickBase = System.currentTimeMillis();
+    }
+
+    // Sim redraws the player page every second while playing.
+    private final Runnable playerTick = new Runnable() {
+        @Override public void run() {
+            if (screen == Screen.PLAYER && player()[1].equals("1")) {
+                invalidate();
+                handler.postDelayed(this, 1000);
+            }
+        }
+    };
+
+    private Bitmap decodeIcon(String b64) {
+        byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+        return android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+    }
+
+    private static final String PLAYER_VOL_B64 =
+            "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";
+
+    private static final String MUSIC_NOTE_B64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAA0AAAARCAIAAACJnbHLAAAByUlEQVR4nGWQvWsUYRDG592bNbvsspe4HIRDr7gciUVipVwh2FjYpJC0igRsrFJZ+H8I0drCKhb2lkZbbQIXBS1u4bKHy5Hb7L6fMxYbzoSbZmDmN8/wPGI4HAIzw7WSUk6nU1OWL9J0r9PJlMKqqhpMCOGc01rX5+ddpV6m6X6/3wsCAPg+n6NSipmZWUpZl2Xf856trj4dDAZhCAAzay0zAFxydV1HUr5eX99N034Y3vA8zfy5KN6Nx/vdbj8IUEoJAEqp3SR51etZ5rFSn6bTwyz7rXUbcc9aAEBjDDM75wCgdO4oz99PJsdl6ft+FEWe1o0zNMYAgHMOmAtjPpydfasq3/eFENZaJLrknHMLPQKwzMxMRE1YtOCWsgOA5UABmyaWUCIiIhbiGnf1nJk957bD8HGa7sTx/SQprcXlp0T0MEnebG7eiaJm8mU2QyKy1hIRX+GedDoLCABOqwrvrqwcbGxsx/FN32+8CSE+5vmDdvt2EBjmX1X1NsvwcGvrXpI0d3+kBIBWq/V1Pn9+crITx5VzPy4uMq3xVhAs9EvnJloLIQTiqTGjomjkPUQ8yvNHa2u+5/015mA0+iklIjZrIf7H9Q+S7Q4pGTXQygAAAABJRU5ErkJggg==";
+
+    // Sim v4.89 player page: title + count, .nowPlaying with the track meta,
+    // the timeline/progress, and the .playerControls pad cluster.
+    private void drawPlayer(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Media player", "1/1");
+        String[] ps = player();
+        long e = playerSeconds();
+        float ux = w / 240f;
+        float u = screenH(h) / 258f; // ~= 1 sim vh in px on the 240x320 frame
+        float areaTop = statusH(h);
+        float areaH = screenH(h);
+        float npTop = areaTop + 0.12f * areaH;
+        float npH = 0.88f * areaH;
+        // .trackMeta
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.WHITE);
+        p.setTextSize(2.42f * u);
+        float metaX = w * 0.022f;
+        float y = npTop + 2.0f * u;
+        c.drawText("S40 Test Tone", metaX, y, p);
+        p.setTextSize(1.72f * u);
+        p.setColor(Color.parseColor("#DDDDDD"));
+        y += 1.72f * u * 1.38f;
+        c.drawText("Unknown album", metaX, y, p);
+        y += 1.72f * u * 1.38f;
+        c.drawText("Emulator", metaX, y, p);
+        // .playerTimeline: left/right 2%, top 47%, height 12% of nowPlaying
+        float tlTop = npTop + 0.47f * npH;
+        float tlH = 0.12f * npH;
+        float tlX = w * 0.02f, tlR = w - w * 0.02f;
+        p.setTextSize(1.4f * u);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        float timesBase = tlTop + 0.52f * tlH;
+        c.drawText(fmtTime(e), tlX, timesBase, p);
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText("01:30", tlR, timesBase, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        // .playerProgress: 1px #eee track + 3px fill
+        float prTop = tlTop + tlH - 1 * ux;
+        p.setColor(Color.parseColor("#555555"));
+        c.drawRect(tlX, prTop + 1 * ux, tlR, prTop + 2 * ux, p);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        c.drawRect(tlX, prTop, tlR, prTop + 1 * ux, p);
+        float fillW = (tlR - tlX) * Math.min(100f, e / 90f * 100f) / 100f;
+        c.drawRect(tlX, prTop - 1 * ux, tlX + fillW, prTop + 2 * ux, p);
+        // .playerControls: top 58% bottom 0 of nowPlaying
+        float ctTop = npTop + 0.58f * npH;
+        float ctH = npTop + npH - ctTop;
+        // .playerMode
+        p.setColor(Color.parseColor("#AAAAAA"));
+        p.setTextSize(2.3f * u);
+        c.drawText("\u21AA  \u2928", w * 0.04f, ctTop + 0.39f * ctH + 2.3f * u * 0.5f, p);
+        // .playerPad: left 34%, top 3%, width 34%, height 62%
+        float padL = w * 0.34f, padT = ctTop + 0.03f * ctH;
+        float padW = w * 0.34f, padH = 0.62f * ctH;
+        android.graphics.RectF pad = new android.graphics.RectF(padL, padT, padL + padW, padT + padH);
+        p.setShader(new android.graphics.LinearGradient(0, padT, 0, padT + padH,
+                new int[]{Color.parseColor("#777777"), Color.parseColor("#222222"), Color.parseColor("#050505")},
+                new float[]{0f, 0.48f, 1f}, android.graphics.Shader.TileMode.CLAMP));
+        c.drawRoundRect(pad, padW * 0.35f, padH * 0.35f, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1f, ux));
+        p.setColor(Color.parseColor("#777777"));
+        c.drawRoundRect(pad, padW * 0.35f, padH * 0.35f, p);
+        p.setStyle(Paint.Style.FILL);
+        // rew / ff outside the pad
+        p.setColor(Color.WHITE);
+        p.setTextSize(1.55f * u);
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText("\u25C0|", padL - padW * 0.07f + padW * 0.07f - 2 * ux, padT + 0.42f * padH + 1.55f * u * 0.4f, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        c.drawText("|\u25B6", padL + padW + 2 * ux - padW * 0.07f, padT + 0.42f * padH + 1.55f * u * 0.4f, p);
+        // pause box: left/right 28%, top 29% bottom 28%
+        android.graphics.RectF pb = new android.graphics.RectF(padL + padW * 0.28f, padT + padH * 0.29f, padL + padW * 0.72f, padT + padH * 0.72f);
+        p.setShader(new android.graphics.LinearGradient(0, pb.top, 0, pb.bottom,
+                Color.parseColor("#666666"), Color.parseColor("#111111"), android.graphics.Shader.TileMode.CLAMP));
+        c.drawRoundRect(pb, 6 * ux, 6 * ux, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setColor(Color.parseColor("#777777"));
+        c.drawRoundRect(pb, 6 * ux, 6 * ux, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.WHITE);
+        p.setTextSize(2.4f * u);
+        p.setTextAlign(Paint.Align.CENTER);
+        c.drawText(ps[1].equals("1") ? "\u2161" : "\u25B6", pb.centerX(), pb.centerY() + 2.4f * u * 0.35f, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        // .playerVolume icon (sim's speaker PNG, rotated 90 degrees)
+        if (playerVolIcon == null) playerVolIcon = decodeIcon(PLAYER_VOL_B64);
+        float volW = 35 * ux * 0.6f;
+        android.graphics.Matrix m = new android.graphics.Matrix();
+        m.postRotate(90);
+        Bitmap rot = android.graphics.Bitmap.createBitmap(playerVolIcon, 0, 0, playerVolIcon.getWidth(), playerVolIcon.getHeight(), m, true);
+        c.drawBitmap(rot, w - w * 0.03f - rot.getWidth() * ux / 3f, ctTop + 0.39f * ctH, null);
+    }
+
+    // Sim v4.89 musiclibrary page: title 'Media menu' + the media menu rows.
+    private void drawMusicLib(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Media menu");
+        drawItemRows(c, w, h, MEDIA_MENU.length, i -> MEDIA_MENU[i], null, i -> genericIcon());
+    }
+
+    // Sim v4.89 allsongs page: title + count, one track row with the music
+    // note icon from the sim.
+    private void drawAllSongs(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "All songs", "1");
+        if (musicNoteIcon == null) musicNoteIcon = decodeIcon(MUSIC_NOTE_B64);
+        drawItemRows(c, w, h, 1, i -> "S40 Test Tone", null, i -> musicNoteIcon);
+    }
+
+    // Sim v4.89 library list pages (playlists/artists/albums/genres/videos).
+    private void drawLibList(Canvas c, int w, int h) {
+        drawTitle(c, w, h, LIB_TITLES[libKind]);
+        String[] items = LIB_LISTS[libKind];
+        drawItemRows(c, w, h, items.length, i -> items[i], null, i -> genericIcon());
+    }
+
+    // Sim v4.89 equaliser page: preset rows with a check on the active one.
+    private void drawEqualiser(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Equaliser");
+        String eq = player()[6];
+        drawItemRows(c, w, h, EQ_ROWS.length, i -> EQ_ROWS[i] + (EQ_ROWS[i].equals(eq) ? "  \u2713" : ""), null, i -> genericIcon());
+    }
+
     // Sim v4.89 fmtTime: mm:ss, both parts zero-padded.
     private static String fmtTime(long seconds) {
         long sec = Math.max(0, seconds);
@@ -1845,6 +2243,14 @@ public class NokiaUi extends View {
             case ALARM_EDIT: return "Alarm time";
             case ADD_CONTACT: return "Add contact";
             case GOTO: return "Go to";
+            case BROWSER: return "Nokia Browser";
+            case URLENTRY: return "Urlentry"; // sim title() fallback quirk
+            case APPDOWNLOADS: return "Appdownloads"; // sim title() fallback quirk
+            case PLAYER: return "Media player";
+            case MUSICLIB: return "Musiclibrary"; // sim title() fallback quirk
+            case ALLSONGS: return "Allsongs"; // sim title() fallback quirk
+            case EQUALISER: return "Equaliser";
+            case LIBLIST: return LIB_TITLES[libKind];
             default: return "Details";
         }
     }
@@ -1908,8 +2314,8 @@ public class NokiaUi extends View {
             case 3: cameraFromMedia = false; screen = Screen.CAMERA; break;
             case 4: videoFromMedia = false; screen = Screen.VIDEOREC; break;
             case 5: calcFromList = false; screen = Screen.CALC; break;
-            case 6: actions.openRoute("Go to", "Nokia Browser"); break;
-            case 7: actions.openRoute("Go to", "Media player"); break;
+            case 6: screen = Screen.BROWSER; break;
+            case 7: playerFrom = 0; screen = Screen.PLAYER; break;
             case 8: // Conversations
                 threads = actions.sms();
                 rebuildConvos();
@@ -2665,12 +3071,17 @@ public class NokiaUi extends View {
                 else if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; screen = Screen.READ; }
                 else if (from == Screen.CONTACTS_HOME || from == Screen.CALLLOG_HOME) selectCurrent();
                 else if (from == Screen.LIST) selectListItem();
+                else if (from == Screen.APPDOWNLOADS) appDownloadsOpen();
+                else if (from == Screen.MUSICLIB || from == Screen.ALLSONGS || from == Screen.LIBLIST) { optionsFrom = from; selectCurrent(); }
                 break;
             case "Select":
                 selectCurrent();
                 break;
             case "Activate":
                 if (from == Screen.PROFILES) activateProfile();
+                // Sim: the equaliser's options-list 'Activate' only notices
+                // 'Equaliser activated' (the centre key sets the preset).
+                else if (from == Screen.EQUALISER) notice = "Equaliser activated";
                 break;
             case "Help":
                 notice = "Help opened"; // sim notice for Help on fallback pages
@@ -2700,12 +3111,52 @@ public class NokiaUi extends View {
             case "Settings":
                 // Sim nav map: 'Settings' opens the itemdetail page with the
                 // page title + ' settings' / 'Settings available'.
-                if (from == Screen.CAMERA) {
-                    itemDetailTitle = "Camera settings";
+                if (from == Screen.CAMERA || from == Screen.BROWSER || from == Screen.PLAYER) {
+                    itemDetailTitle = (from == Screen.CAMERA ? "Camera" : from == Screen.PLAYER ? "Media player" : "Nokia Browser") + " settings";
                     itemDetailText = "Settings available";
-                    itemDetailFrom = Screen.CAMERA;
+                    itemDetailFrom = from;
                     screen = Screen.ITEMDETAIL;
                 }
+                break;
+            case "Home":
+                if (from == Screen.BROWSER) { browserUrl = "https://www.nokia.com/phones/"; browserTitle = "Home"; } // sim nav map
+                break;
+            case "Bookmarks":
+                if (from == Screen.BROWSER) { browserUrl = "about:bookmarks"; browserTitle = "Bookmarks"; } // sim nav map
+                break;
+            case "Go to address":
+                if (from == Screen.BROWSER) screen = Screen.URLENTRY; // sim nav map; urlEntry keeps its value, as in the sim
+                break;
+            case "Last web addr.":
+                if (from == Screen.BROWSER) browserTitle = "Last web addr."; // sim nav map: url unchanged
+                break;
+            case "Downloads":
+                if (from == Screen.BROWSER) { appDlFromApps = false; screen = Screen.APPDOWNLOADS; row = 0; } // sim nav map
+                break;
+            case "Music library":
+                if (from == Screen.PLAYER) { musicFromPlayer = true; screen = Screen.MUSICLIB; row = 0; }
+                break;
+            case "Now playing":
+                // Sim nav map: already on the player page.
+                break;
+            case "Shuffle":
+                if (from == Screen.PLAYER) {
+                    String[] ps = player();
+                    ps[4] = ps[4].equals("1") ? "0" : "1";
+                    actions.setPlayer(ps);
+                    notice = "Shuffle " + (ps[4].equals("1") ? "on" : "off");
+                }
+                break;
+            case "Repeat":
+                if (from == Screen.PLAYER) {
+                    String[] ps = player();
+                    ps[5] = ps[5].equals("1") ? "0" : "1";
+                    actions.setPlayer(ps);
+                    notice = "Repeat " + (ps[5].equals("1") ? "on" : "off");
+                }
+                break;
+            case "Equaliser":
+                if (from == Screen.PLAYER) { eqFromPlayer = true; screen = Screen.EQUALISER; row = eqIndex(); }
                 break;
             case "Details": case "Folder details": case "Mem. card options":
                 // Sim: itemdetail page titled by the option, '<title> details'.
@@ -2895,6 +3346,11 @@ public class NokiaUi extends View {
             case CALC: return new String[]{"Scientific calculator", "Loan calculator", "Instructions", "Exit"}; // sim opts.calculator
             case CAMERA: return new String[]{"Capture", "Self-timer", "Effects", "Settings"}; // sim opts.camera
             case VIDEOREC: return new String[]{"Record", "Video settings", "Memory in use"}; // sim opts.videorecorder
+            case BROWSER: return new String[]{"Open", "Home", "Bookmarks", "Go to address", "Last web addr.", "Downloads", "Settings"}; // sim opts.browser
+            case URLENTRY: case APPDOWNLOADS: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
+            case PLAYER: return new String[]{"Music library", "Now playing", "Shuffle", "Repeat", "Equaliser", "Settings"}; // sim opts.player
+            case EQUALISER: return new String[]{"Activate", "Edit", "Rename"}; // sim opts.equaliser
+            case MUSICLIB: case ALLSONGS: case LIBLIST: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
             case CONTACT_CARD: return new String[]{"Add detail >", "Call", "Edit", "Delete", "Send message >", "View conversations", "Add image >", "Use number", "Set as default", "Change type >", "Copy number", "Send business card >", "Add to group", "Speed dial"};
             case CONTACTS_HOME: return new String[]{"Open", "Search", "Add new", "Memory status"};
             case CALLLOG_HOME: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
@@ -2938,6 +3394,14 @@ public class NokiaUi extends View {
             case CALC: return new String[]{"Options", "", calcActive ? "Clear" : "Exit"};
             case CAMERA: return new String[]{"Options", "Capture", "Back"};
             case VIDEOREC: return new String[]{"Options", videoRecording ? "Stop" : "Record", "Back"};
+            case BROWSER: return new String[]{"Options", "Open", "Back"}; // sim soft('Options','Open','Back')
+            case URLENTRY: return new String[]{"Options", "Go", urlEntry.length() > 0 ? "Clear" : "Back"}; // sim label; RSK still backs out, as in the sim
+            case APPDOWNLOADS: return new String[]{"", "Open", "Back"};
+            case PLAYER: return new String[]{"Options", "", "Back"}; // sim soft('Options','','Back')
+            case MUSICLIB: return new String[]{"Options", "Select", "Exit"};
+            case ALLSONGS: return new String[]{"Options", "Play", "Back"};
+            case LIBLIST: return new String[]{"Options", "Open", "Back"};
+            case EQUALISER: return new String[]{"Options", "Activate", "Back"};
             case ITEMDETAIL: return new String[]{"", "", "Back"};
             case CONFIRM_DEL: return new String[]{"Yes", "", "No"};
             case LIST: {
