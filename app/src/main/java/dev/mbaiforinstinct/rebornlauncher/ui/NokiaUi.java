@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC
     }
 
     public interface Actions {
@@ -283,6 +283,10 @@ public class NokiaUi extends View {
     private String itemDetailTitle = "";
     private String itemDetailText = "";
     private Screen itemDetailFrom = Screen.IDLE;
+    // Sim v4.89 videorecorder page state: recording flag + start time.
+    private boolean videoRecording = false;
+    private long videoStartedAt = 0L;
+    private boolean videoFromMedia = false;
     private final List<String[]> drafts = new ArrayList<>();
 
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -322,6 +326,7 @@ public class NokiaUi extends View {
             case CALC: drawCalc(c, w, h); break;
             case CAMERA: drawCamera(c, w, h); break;
             case ITEMDETAIL: drawItemDetail(c, w, h); break;
+            case VIDEOREC: drawVideoRec(c, w, h); break;
             case CONFIRM_DEL: drawConfirmDelete(c, w, h); break;
             case THREADS: drawThreads(c, w, h); break;
             case CONVERSATION: drawConversation(c, w, h); break;
@@ -663,6 +668,10 @@ public class NokiaUi extends View {
             case ITEMDETAIL:
                 screen = itemDetailFrom;
                 break;
+            case VIDEOREC:
+                if (videoFromMedia) { screen = Screen.LIST; listSection = 29; row = 1; }
+                else { screen = Screen.GOTO; row = 4; }
+                break;
             case PROFILES:
                 if (profilesFromSettings) {
                     profilesFromSettings = false;
@@ -796,6 +805,13 @@ public class NokiaUi extends View {
                 // notice say 'Photo saved to Images'.
                 cameraShot = true;
                 notice = "Photo saved to Images";
+                break;
+            case VIDEOREC:
+                // Sim OK on videorecorder: toggle recording; stopping shows
+                // the 'Recording saved' notice.
+                videoRecording = !videoRecording;
+                if (videoRecording) videoStartedAt = System.currentTimeMillis();
+                else notice = "Recording saved";
                 break;
             case CONFIRM_DEL:
                 deleteAllMessages();
@@ -1088,8 +1104,12 @@ public class NokiaUi extends View {
         }
         if (listSection == 29 && row == 0) { // sim media row 0 opens the camera page
             cameraFromMedia = true;
-            cameraShot = false;
             screen = Screen.CAMERA;
+            return;
+        }
+        if (listSection == 29 && row == 1) { // sim media row 1 opens the video recorder
+            videoFromMedia = true;
+            screen = Screen.VIDEOREC;
             return;
         }
         if (listSection == 1) {
@@ -1747,6 +1767,36 @@ public class NokiaUi extends View {
         p.setTextAlign(Paint.Align.LEFT);
     }
 
+    // Sim v4.89 fmtTime: mm:ss, both parts zero-padded.
+    private static String fmtTime(long seconds) {
+        long sec = Math.max(0, seconds);
+        return String.format(java.util.Locale.UK, "%02d:%02d", sec / 60, sec % 60);
+    }
+
+    // Sim v4.89 videorecorder page: same .cameraView panel as the camera;
+    // 'Demo video preview' idle, 'Recording  mm:ss' while recording (the sim
+    // only refreshes the clock on redraw, same as this key-driven UI).
+    private void drawVideoRec(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Video recorder");
+        float ux = w / 240f;
+        float u = screenH(h) / 258f;
+        float top = statusH(h) + titleH(h);
+        float bot = softTop(h);
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(new android.graphics.LinearGradient(0, top, 0, bot,
+                Color.parseColor("#1A2730"), Color.parseColor("#080B0D"), android.graphics.Shader.TileMode.CLAMP));
+        c.drawRect(0, top, w, bot, p);
+        p.setShader(null);
+        p.setColor(Color.parseColor("#DDDDDD"));
+        p.setTextSize(18 * ux);
+        p.setTextAlign(Paint.Align.CENTER);
+        String text = videoRecording
+                ? "Recording  " + fmtTime((System.currentTimeMillis() - videoStartedAt) / 1000)
+                : "Demo video preview";
+        c.drawText(text, w / 2f, top + 89 * u, p);
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
     // Sim v4.89 camera page: title + .cameraView panel (absolute over the
     // screen body, linear-gradient #1a2730 -> #080b0d, centred 18px #ddd text
     // with padding-top 75px on the 240x320 frame).
@@ -1855,8 +1905,8 @@ public class NokiaUi extends View {
                 row = 0;
                 break;
             case 2: alarmFromList = false; screen = Screen.ALARM; row = 0; break;
-            case 3: cameraFromMedia = false; cameraShot = false; screen = Screen.CAMERA; break;
-            case 4: actions.openRoute("Go to", "Video recorder"); break;
+            case 3: cameraFromMedia = false; screen = Screen.CAMERA; break;
+            case 4: videoFromMedia = false; screen = Screen.VIDEOREC; break;
             case 5: calcFromList = false; screen = Screen.CALC; break;
             case 6: actions.openRoute("Go to", "Nokia Browser"); break;
             case 7: actions.openRoute("Go to", "Media player"); break;
@@ -2643,6 +2693,10 @@ public class NokiaUi extends View {
             case "Effects":
                 if (from == Screen.CAMERA) notice = "Effects selected";
                 break;
+            case "Record": case "Video settings": case "Memory in use":
+                // Sim: these option items fall through to the generic notice.
+                if (from == Screen.VIDEOREC) notice = item + " selected";
+                break;
             case "Settings":
                 // Sim nav map: 'Settings' opens the itemdetail page with the
                 // page title + ' settings' / 'Settings available'.
@@ -2840,6 +2894,7 @@ public class NokiaUi extends View {
             case ALARM: case ALARM_EDIT: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
             case CALC: return new String[]{"Scientific calculator", "Loan calculator", "Instructions", "Exit"}; // sim opts.calculator
             case CAMERA: return new String[]{"Capture", "Self-timer", "Effects", "Settings"}; // sim opts.camera
+            case VIDEOREC: return new String[]{"Record", "Video settings", "Memory in use"}; // sim opts.videorecorder
             case CONTACT_CARD: return new String[]{"Add detail >", "Call", "Edit", "Delete", "Send message >", "View conversations", "Add image >", "Use number", "Set as default", "Change type >", "Copy number", "Send business card >", "Add to group", "Speed dial"};
             case CONTACTS_HOME: return new String[]{"Open", "Search", "Add new", "Memory status"};
             case CALLLOG_HOME: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
@@ -2882,6 +2937,7 @@ public class NokiaUi extends View {
             case ALARM_EDIT: return new String[]{"Options", "Save", alarmDigits.length() > 0 ? "Clear" : "Back"};
             case CALC: return new String[]{"Options", "", calcActive ? "Clear" : "Exit"};
             case CAMERA: return new String[]{"Options", "Capture", "Back"};
+            case VIDEOREC: return new String[]{"Options", videoRecording ? "Stop" : "Record", "Back"};
             case ITEMDETAIL: return new String[]{"", "", "Back"};
             case CONFIRM_DEL: return new String[]{"Yes", "", "No"};
             case LIST: {
