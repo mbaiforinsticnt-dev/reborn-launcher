@@ -25,7 +25,7 @@ jobs:
       - run: gradle --no-daemon clean assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: reborn-launcher-debug
+          name: reborn-apk-debug
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish debug APK to builds branch
         run: |
@@ -34,8 +34,8 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk /tmp/reborn-debug.apk
           if git fetch origin builds:builds 2>/dev/null; then git checkout builds; else git checkout --orphan builds; git rm -rf . >/dev/null 2>&1 || true; fi
           mkdir -p apk
-          cp /tmp/reborn-debug.apk apk/reborn-launcher-debug.apk
-          git add apk/reborn-launcher-debug.apk
+          cp /tmp/reborn-debug.apk apk/reborn-apk-debug.apk
+          git add apk/reborn-apk-debug.apk
           git commit -m "Debug APK from ${{ github.sha }}" || exit 0
           git push -f origin builds
 
@@ -67,7 +67,7 @@ jobs:
           for f in screenshots/*.png; do test "$(head -c 8 "$f" | xxd -p)" = "89504e470d0a1a0a"; done
       - uses: actions/upload-artifact@v4
         with:
-          name: reborn-launcher-emulator-proof
+          name: reborn-apk-emulator-proof
           path: screenshots/
       - name: Publish proof screenshots to repository
         run: |
