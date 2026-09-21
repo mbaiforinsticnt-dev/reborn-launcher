@@ -574,5 +574,15 @@ tap_key D3; sleep 1
 tap_key CENTER; sleep 2; shot 18-calc-result
 tap_key END; sleep 1
 
+# Camera: Go to row 3 -> demo preview -> Capture -> options -> Settings detail.
+tap_key LSK; sleep 2
+for i in 1 2 3; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 19-camera
+tap_key CENTER; sleep 2; shot 20-camera-capture
+tap_key LSK; sleep 2; shot 21-camera-options
+for i in 1 2 3; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 22-camera-settings
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
