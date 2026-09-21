@@ -112,7 +112,7 @@ tap() {
 # Keypad-relative tap points (fractions of the keypad view; see OnScreenKeypad).
 CENTER="0.500 0.330"; UP="0.500 0.208"; DOWN="0.500 0.452"
 LEFT="0.165 0.330"; RIGHT="0.835 0.330"
-CALL="0.165 0.452"; END="0.835 0.452"; LSK="0.165 0.075"
+CALL="0.165 0.452"; END="0.835 0.452"; LSK="0.165 0.075"; RSK="0.835 0.075"
 D1="0.165 0.586"; D2="0.500 0.586"; D3="0.835 0.586"
 D4="0.165 0.699"; D5="0.500 0.699"; D6="0.835 0.699"
 D7="0.165 0.811"; D8="0.500 0.811"; D9="0.835 0.811"
@@ -546,6 +546,22 @@ if cmp -s "$SCREEN_DIR/11-compose-text.png" "$SCREEN_DIR/12-sent.png"; then
   echo "DIAG: send never registered; Reborn logcat:"
   "${ADB[@]}" shell logcat -d -s Reborn:* 2>/dev/null | tr -d '\r' | tail -8
 fi
+
+# Alarm clock: Go to -> Alarm clock -> time editor -> save 07:30.
+tap_key END; sleep 1
+tap_key LSK; sleep 2; shot 13-goto
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 14-alarm
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 15-alarm-edit
+for i in 1 2 3 4; do tap_key RSK; sleep 1; done
+tap_key D0; sleep 1
+tap_key D7; sleep 1
+tap_key D3; sleep 1
+tap_key D0; sleep 1
+tap_key CENTER; sleep 2; shot 16-alarm-set
+tap_key END; sleep 1
 
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
