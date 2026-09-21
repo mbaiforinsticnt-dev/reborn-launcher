@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL
     }
 
     public interface Actions {
@@ -276,6 +276,13 @@ public class NokiaUi extends View {
     private String calcOp = "";
     private boolean calcActive = false;
     private boolean calcFromList = false;
+    // Sim v4.89 camera page state: demo preview -> captured photo notice.
+    private boolean cameraShot = false;
+    private boolean cameraFromMedia = false;
+    // Sim v4.89 itemdetail page: generic details view ('Details'/'Settings').
+    private String itemDetailTitle = "";
+    private String itemDetailText = "";
+    private Screen itemDetailFrom = Screen.IDLE;
     private final List<String[]> drafts = new ArrayList<>();
 
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -313,6 +320,8 @@ public class NokiaUi extends View {
             case ALARM: drawAlarm(c, w, h); break;
             case ALARM_EDIT: drawAlarmEdit(c, w, h); break;
             case CALC: drawCalc(c, w, h); break;
+            case CAMERA: drawCamera(c, w, h); break;
+            case ITEMDETAIL: drawItemDetail(c, w, h); break;
             case CONFIRM_DEL: drawConfirmDelete(c, w, h); break;
             case THREADS: drawThreads(c, w, h); break;
             case CONVERSATION: drawConversation(c, w, h); break;
@@ -647,6 +656,13 @@ public class NokiaUi extends View {
                 if (alarmDigits.length() > 0) alarmDigits = alarmDigits.substring(0, alarmDigits.length() - 1);
                 else screen = Screen.ALARM;
                 break;
+            case CAMERA:
+                if (cameraFromMedia) { screen = Screen.LIST; listSection = 29; row = 0; }
+                else { screen = Screen.GOTO; row = 3; }
+                break;
+            case ITEMDETAIL:
+                screen = itemDetailFrom;
+                break;
             case PROFILES:
                 if (profilesFromSettings) {
                     profilesFromSettings = false;
@@ -774,6 +790,12 @@ public class NokiaUi extends View {
                 break;
             case CALC:
                 calcEquals();
+                break;
+            case CAMERA:
+                // Sim OK on camera: capture, then both the view text and the
+                // notice say 'Photo saved to Images'.
+                cameraShot = true;
+                notice = "Photo saved to Images";
                 break;
             case CONFIRM_DEL:
                 deleteAllMessages();
@@ -1062,6 +1084,12 @@ public class NokiaUi extends View {
         }
         if (listSection == 24) { // Message settings -> the five settings pages
             openListSection(25 + row);
+            return;
+        }
+        if (listSection == 29 && row == 0) { // sim media row 0 opens the camera page
+            cameraFromMedia = true;
+            cameraShot = false;
+            screen = Screen.CAMERA;
             return;
         }
         if (listSection == 1) {
@@ -1719,6 +1747,58 @@ public class NokiaUi extends View {
         p.setTextAlign(Paint.Align.LEFT);
     }
 
+    // Sim v4.89 camera page: title + .cameraView panel (absolute over the
+    // screen body, linear-gradient #1a2730 -> #080b0d, centred 18px #ddd text
+    // with padding-top 75px on the 240x320 frame).
+    private void drawCamera(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Camera");
+        float ux = w / 240f;
+        float u = screenH(h) / 258f;
+        float top = statusH(h) + titleH(h);
+        float bot = softTop(h);
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(new android.graphics.LinearGradient(0, top, 0, bot,
+                Color.parseColor("#1A2730"), Color.parseColor("#080B0D"), android.graphics.Shader.TileMode.CLAMP));
+        c.drawRect(0, top, w, bot, p);
+        p.setShader(null);
+        p.setColor(Color.parseColor("#DDDDDD"));
+        p.setTextSize(18 * ux);
+        p.setTextAlign(Paint.Align.CENTER);
+        // Sim text baseline: padding-top 75px + ~0.8em ascent.
+        c.drawText(cameraShot ? "Photo saved to Images" : "Demo camera preview",
+                w / 2f, top + 89 * u, p);
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
+    // Sim v4.89 itemdetail page: title + .browserPage body (padding 10px,
+    // 13px text, line-height 1.7, inherits the dark screen background).
+    private void drawItemDetail(Canvas c, int w, int h) {
+        drawTitle(c, w, h, itemDetailTitle);
+        float ux = w / 240f;
+        float x = 10 * ux;
+        float y = statusH(h) + titleH(h) + 10 * ux;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        p.setTextSize(13 * ux);
+        for (String line : itemDetailText.split("\n")) {
+            y += 13 * ux * 1.7f;
+            c.drawText(line, x, y, p);
+        }
+    }
+
+    // Sim title() text for the pages whose generic 'Details' option opens the
+    // itemdetail page.
+    private String detailTitleFor(Screen sc) {
+        switch (sc) {
+            case LIST: return LIST_TITLES[listSection];
+            case ALARM: return "Alarm clock";
+            case ALARM_EDIT: return "Alarm time";
+            case ADD_CONTACT: return "Add contact";
+            case GOTO: return "Go to";
+            default: return "Details";
+        }
+    }
+
     // Sim v4.89 confirmdelete page: title + .mailboxDialog centred box
     // (inset 18% top / 8% sides / 25% bottom, #111923, 2px #ddd border).
     private void drawConfirmDelete(Canvas c, int w, int h) {
@@ -1775,7 +1855,7 @@ public class NokiaUi extends View {
                 row = 0;
                 break;
             case 2: alarmFromList = false; screen = Screen.ALARM; row = 0; break;
-            case 3: actions.openRoute("Go to", "Camera"); break;
+            case 3: cameraFromMedia = false; cameraShot = false; screen = Screen.CAMERA; break;
             case 4: actions.openRoute("Go to", "Video recorder"); break;
             case 5: calcFromList = false; screen = Screen.CALC; break;
             case 6: actions.openRoute("Go to", "Nokia Browser"); break;
@@ -2552,6 +2632,34 @@ public class NokiaUi extends View {
                 screen = Screen.IDLE;
                 row = 0;
                 break;
+            case "Capture":
+                // Sim: the options-list 'Capture' falls to the generic notice
+                // (only the centre key actually takes the photo).
+                if (from == Screen.CAMERA) notice = "Capture selected";
+                break;
+            case "Self-timer":
+                if (from == Screen.CAMERA) notice = "Self-timer selected";
+                break;
+            case "Effects":
+                if (from == Screen.CAMERA) notice = "Effects selected";
+                break;
+            case "Settings":
+                // Sim nav map: 'Settings' opens the itemdetail page with the
+                // page title + ' settings' / 'Settings available'.
+                if (from == Screen.CAMERA) {
+                    itemDetailTitle = "Camera settings";
+                    itemDetailText = "Settings available";
+                    itemDetailFrom = Screen.CAMERA;
+                    screen = Screen.ITEMDETAIL;
+                }
+                break;
+            case "Details": case "Folder details": case "Mem. card options":
+                // Sim: itemdetail page titled by the option, '<title> details'.
+                itemDetailTitle = item;
+                itemDetailText = detailTitleFor(from) + " details";
+                itemDetailFrom = from;
+                screen = Screen.ITEMDETAIL;
+                break;
             case "Timed":
                 if (from == Screen.PROFILES) notice = "Timed profile set for 1 hour";
                 break;
@@ -2731,6 +2839,7 @@ public class NokiaUi extends View {
             case PROFILES: return new String[]{"Activate", "Personalise", "Timed"};
             case ALARM: case ALARM_EDIT: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
             case CALC: return new String[]{"Scientific calculator", "Loan calculator", "Instructions", "Exit"}; // sim opts.calculator
+            case CAMERA: return new String[]{"Capture", "Self-timer", "Effects", "Settings"}; // sim opts.camera
             case CONTACT_CARD: return new String[]{"Add detail >", "Call", "Edit", "Delete", "Send message >", "View conversations", "Add image >", "Use number", "Set as default", "Change type >", "Copy number", "Send business card >", "Add to group", "Speed dial"};
             case CONTACTS_HOME: return new String[]{"Open", "Search", "Add new", "Memory status"};
             case CALLLOG_HOME: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
@@ -2772,6 +2881,8 @@ public class NokiaUi extends View {
             case ALARM: return new String[]{"Options", "Change", "Back"};
             case ALARM_EDIT: return new String[]{"Options", "Save", alarmDigits.length() > 0 ? "Clear" : "Back"};
             case CALC: return new String[]{"Options", "", calcActive ? "Clear" : "Exit"};
+            case CAMERA: return new String[]{"Options", "Capture", "Back"};
+            case ITEMDETAIL: return new String[]{"", "", "Back"};
             case CONFIRM_DEL: return new String[]{"Yes", "", "No"};
             case LIST: {
                 String centre = "Select";
