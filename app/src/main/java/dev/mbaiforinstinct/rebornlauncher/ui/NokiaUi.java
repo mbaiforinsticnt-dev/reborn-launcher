@@ -4515,6 +4515,13 @@ public class NokiaUi extends View {
                     listSection = 45; screen = Screen.LIST; row = 0;
                 } else if (from == Screen.COMPOSE_NUMBER || from == Screen.COMPOSE_TEXT) {
                     notice = "Copy / Cut / Paste"; // sim notice verbatim
+                } else if (from == Screen.LOANCALC) {
+                    // Sim loancalc only: opens the 'loanediting' pseudo-page options.
+                    loanEditing = true;
+                    optionsFrom = Screen.LOANCALC;
+                    optionsItems = optionsItemsFor(Screen.LOANCALC);
+                    optionsSel = 0;
+                    screen = Screen.OPTIONS;
                 }
                 break;
             case "Writing language >": case "Writing language":
@@ -4583,16 +4590,6 @@ public class NokiaUi extends View {
                 break;
             case "Calculate":
                 if (from == Screen.LOANCALC) calculateLoan();
-                break;
-            case "Editing options":
-                // Sim loancalc only: opens the 'loanediting' pseudo-page options.
-                if (from == Screen.LOANCALC) {
-                    loanEditing = true;
-                    optionsFrom = Screen.LOANCALC;
-                    optionsItems = optionsItemsFor(Screen.LOANCALC);
-                    optionsSel = 0;
-                    screen = Screen.OPTIONS;
-                }
                 break;
             case "Paste":
                 // Sim loanediting quirk: Paste just keeps the panel open.
