@@ -116,7 +116,7 @@ CALL="0.165 0.452"; END="0.835 0.452"; LSK="0.165 0.075"; RSK="0.835 0.075"
 D1="0.165 0.586"; D2="0.500 0.586"; D3="0.835 0.586"
 D4="0.165 0.699"; D5="0.500 0.699"; D6="0.835 0.699"
 D7="0.165 0.811"; D8="0.500 0.811"; D9="0.835 0.811"
-D0="0.500 0.924"
+D0="0.500 0.924"; STAR="0.165 0.924"; HASH="0.835 0.924"
 
 tap_key() { # name from the constants above
   local pt="${!1}"
@@ -894,6 +894,16 @@ tap_key D4; sleep 1
 tap_key DOWN; sleep 1
 shot 102-loancalc-ready
 tap_key CENTER; sleep 2; shot 103-loancalc-result
+tap_key END; sleep 1
+
+# (187) Keypad lock: Go to row 0 -> locked; Unlock -> 'Now press *' notice;
+# wrong key -> 'Keypad locked' notice; Unlock + * -> 'Keypad unlocked'.
+tap_key LSK; sleep 2
+tap_key CENTER; sleep 2; shot 104-lockscreen
+tap_key LSK; sleep 2; shot 105-lock-now-press
+tap_key D5; sleep 2; shot 106-lock-wrong-key
+tap_key LSK; sleep 1
+tap_key STAR; sleep 2; shot 107-unlocked
 tap_key END; sleep 1
 
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
