@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC
     }
 
     public interface Actions {
@@ -271,6 +271,11 @@ public class NokiaUi extends View {
     private String notice = null;
     private String alarmDigits = "";
     private boolean alarmFromList = false;
+    private String calc = "";
+    private Double calcStored = null;
+    private String calcOp = "";
+    private boolean calcActive = false;
+    private boolean calcFromList = false;
     private final List<String[]> drafts = new ArrayList<>();
 
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -307,6 +312,7 @@ public class NokiaUi extends View {
             case PROFILES: drawProfiles(c, w, h); break;
             case ALARM: drawAlarm(c, w, h); break;
             case ALARM_EDIT: drawAlarmEdit(c, w, h); break;
+            case CALC: drawCalc(c, w, h); break;
             case CONFIRM_DEL: drawConfirmDelete(c, w, h); break;
             case THREADS: drawThreads(c, w, h); break;
             case CONVERSATION: drawConversation(c, w, h); break;
@@ -455,6 +461,10 @@ public class NokiaUi extends View {
             case ALARM_EDIT:
                 if (alarmDigits.length() < 4) alarmDigits = alarmDigits + d;
                 break;
+            case CALC:
+                if (calc.length() < 12) calc = calc.equals("0") ? String.valueOf(d) : calc + d;
+                calcActive = true;
+                break;
             case COMPOSE_NUMBER:
                 if (resolvedFocus() == 0) {
                     if (composeNumber.length() < 24) composeNumber.append(d);
@@ -481,7 +491,15 @@ public class NokiaUi extends View {
     }
 
     private void symbol(String s) {
-        if (screen == Screen.DIALER && dialNumber.length() < 24) dialNumber.append(s);
+        if (screen == Screen.CALC) {
+            if (s.equals("*")) {
+                if (!calc.contains(".")) calc = (calc.isEmpty() ? "0" : calc) + ".";
+            } else {
+                calc = calc.isEmpty() ? "-" : jsNum(-parseNum(calc));
+            }
+            calcActive = true;
+        }
+        else if (screen == Screen.DIALER && dialNumber.length() < 24) dialNumber.append(s);
         else if (screen == Screen.COMPOSE_NUMBER && resolvedFocus() == 0 && composeNumber.length() < 24) composeNumber.append(s);
         else if (screen == Screen.ADD_CONTACT && contactField == 1 && contactNumber.length() < 24) contactNumber.append(s);
     }
@@ -616,6 +634,15 @@ public class NokiaUi extends View {
                 if (alarmFromList) { screen = Screen.LIST; listSection = 1; row = 0; }
                 else { screen = Screen.GOTO; row = 2; }
                 break;
+            case CALC:
+                if (!calcActive) {
+                    if (calcFromList) { screen = Screen.LIST; listSection = 1; row = 5; }
+                    else { screen = Screen.GOTO; row = 5; }
+                } else {
+                    calc = calc.isEmpty() ? "" : calc.substring(0, calc.length() - 1);
+                    calcActive = !calc.isEmpty();
+                }
+                break;
             case ALARM_EDIT:
                 if (alarmDigits.length() > 0) alarmDigits = alarmDigits.substring(0, alarmDigits.length() - 1);
                 else screen = Screen.ALARM;
@@ -674,6 +701,7 @@ public class NokiaUi extends View {
     }
 
     private void move(int delta) {
+        if (screen == Screen.CALC) { calcOperator(delta < 0 ? "+" : "\u2212"); return; } // sim: UP=+, DOWN=-
         if (screen == Screen.OPTIONS) {
             if (optionsItems.length > 0) optionsSel = (optionsSel + delta + optionsItems.length) % optionsItems.length;
             return;
@@ -697,6 +725,7 @@ public class NokiaUi extends View {
     }
 
     private void moveHorizontal(int delta) {
+        if (screen == Screen.CALC) { calcOperator(delta < 0 ? "\u00D7" : "\u00F7"); return; } // sim: LEFT=x, RIGHT=/
         if (screen == Screen.MENU) {
             selected = (selected + delta + MENU_ITEMS.length) % MENU_ITEMS.length;
         }
@@ -742,6 +771,9 @@ public class NokiaUi extends View {
                 break;
             case ALARM_EDIT:
                 alarmSave();
+                break;
+            case CALC:
+                calcEquals();
                 break;
             case CONFIRM_DEL:
                 deleteAllMessages();
@@ -1037,6 +1069,11 @@ public class NokiaUi extends View {
                 alarmFromList = true;
                 screen = Screen.ALARM;
                 row = 0;
+                return;
+            }
+            if (row == 5) { // sim organiser row 5 opens the calculator page
+                calcFromList = true;
+                screen = Screen.CALC;
                 return;
             }
             actions.openRoute(LIST_TITLES[listSection], LIST_ITEMS[listSection][row]);
@@ -1560,6 +1597,128 @@ public class NokiaUi extends View {
         p.setTypeface(Typeface.DEFAULT);
     }
 
+    private static double parseNum(String s) {
+        try { return s.isEmpty() ? 0 : Double.parseDouble(s); } catch (Exception e) { return 0; }
+    }
+
+    // JS String(number) for the values a calculator shows: integers without a
+    // trailing .0, Infinity/NaN spelled the JS way.
+    private static String jsNum(double n) {
+        if (Double.isNaN(n)) return "NaN";
+        if (Double.isInfinite(n)) return n > 0 ? "Infinity" : "-Infinity";
+        if (n == Math.rint(n) && Math.abs(n) < 1e21) return Long.toString((long) n);
+        return Double.toString(n);
+    }
+
+    // Sim v4.89: a nav key stores the entry and picks the operator; it does
+    // not evaluate a pending operation first.
+    private void calcOperator(String op) {
+        calcStored = parseNum(calc);
+        calcOp = op;
+        calc = "";
+        calcActive = true;
+    }
+
+    // Sim v4.89 centre key: apply the pending operation, if there is one.
+    private void calcEquals() {
+        if (calcStored == null || calcOp.isEmpty()) return;
+        double n = parseNum(calc);
+        double r;
+        switch (calcOp) {
+            case "+": r = calcStored + n; break;
+            case "\u2212": r = calcStored - n; break;
+            case "\u00D7": r = calcStored * n; break;
+            default:
+                r = n == 0 ? (calcStored == 0 ? Double.NaN : (calcStored > 0 ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY)) : calcStored / n;
+                break;
+        }
+        calc = jsNum(r);
+        calcStored = null;
+        calcOp = "";
+        calcActive = true;
+    }
+
+    // Sim v4.89 calculator page: title + .calc display (#f4f6ed, 1px #777,
+    // right-aligned 24px monospace, small stored-op line) + .calcCluster pad.
+    private void drawCalc(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Calculator");
+        float areaH = softTop(h) - statusH(h);
+        float u = areaH / 258f;
+        float ux = w / 240f;
+        float top = statusH(h) + titleH(h);
+        float boxL = 7 * ux, boxR = w - 7 * ux;
+        float boxH = 135 * u;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#F4F6ED"));
+        c.drawRect(boxL, top, boxR, top + boxH, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1f, ux));
+        p.setColor(Color.parseColor("#777777"));
+        c.drawRect(boxL, top, boxR, top + boxH, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#111111"));
+        p.setTypeface(Typeface.MONOSPACE);
+        if (calcStored != null && !calcOp.isEmpty()) {
+            p.setTextSize(15 * ux);
+            c.drawText(jsNum(calcStored) + " " + calcOp, boxL + 6 * ux, top + 80 * u, p);
+        }
+        p.setTextSize(24 * ux);
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText(calc, boxR - 6 * ux, top + 125 * u, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
+        float clX = (w - 230 * ux) / 2f;
+        float clY = top + boxH + 9 * u;
+        calcPad(c, clX + 93 * ux, clY, 44, 31, "+", false, ux, u);
+        calcPad(c, clX + 57 * ux, clY + 29 * u, 44, 31, "\u00D7", false, ux, u);
+        calcPad(c, clX + 93 * ux, clY + 26 * u, 44, 38, "=", true, ux, u);
+        calcPad(c, clX + 129 * ux, clY + 29 * u, 44, 31, "\u00F7", false, ux, u);
+        calcPad(c, clX + 93 * ux, clY + 62 * u, 44, 31, "\u2212", false, ux, u);
+        calcSide(c, clX + 1 * ux, clY + 30 * u, "\u2195", ux, u);
+        calcSide(c, clX + 177 * ux, clY + 30 * u, "\u2212", ux, u);
+    }
+
+    private void calcPad(Canvas c, float x, float y, float wp, float hp, String label, boolean equals, float ux, float u) {
+        android.graphics.RectF r = new android.graphics.RectF(x, y, x + wp * ux, y + hp * u);
+        float rad = (equals ? 10 : 12) * ux;
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(new android.graphics.LinearGradient(0, y, 0, y + hp * u,
+                new int[]{Color.parseColor("#4E5050"), Color.parseColor("#171919"), Color.parseColor("#050606")},
+                new float[]{0f, 0.52f, 1f}, android.graphics.Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(equals ? 4 * ux : Math.max(1f, ux));
+        p.setColor(Color.parseColor(equals ? "#515656" : "#777777"));
+        c.drawRoundRect(r, rad, rad, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.WHITE);
+        p.setTextSize(16 * ux);
+        p.setTextAlign(Paint.Align.CENTER);
+        c.drawText(label, x + wp * ux / 2f, y + hp * u * 0.68f, p);
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
+    private void calcSide(Canvas c, float x, float y, String label, float ux, float u) {
+        android.graphics.RectF r = new android.graphics.RectF(x, y, x + 52 * ux, y + 29 * u);
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(new android.graphics.LinearGradient(0, y, 0, y + 29 * u,
+                new int[]{Color.parseColor("#555858"), Color.parseColor("#151717"), Color.parseColor("#060707")},
+                new float[]{0f, 0.55f, 1f}, android.graphics.Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, 7 * ux, 7 * ux, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1f, ux));
+        p.setColor(Color.parseColor("#686C6C"));
+        c.drawRoundRect(r, 7 * ux, 7 * ux, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.WHITE);
+        p.setTextSize(12 * ux);
+        p.setTextAlign(Paint.Align.CENTER);
+        c.drawText(label, x + 26 * ux, y + 29 * u * 0.68f, p);
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
     // Sim v4.89 confirmdelete page: title + .mailboxDialog centred box
     // (inset 18% top / 8% sides / 25% bottom, #111923, 2px #ddd border).
     private void drawConfirmDelete(Canvas c, int w, int h) {
@@ -1618,7 +1777,7 @@ public class NokiaUi extends View {
             case 2: alarmFromList = false; screen = Screen.ALARM; row = 0; break;
             case 3: actions.openRoute("Go to", "Camera"); break;
             case 4: actions.openRoute("Go to", "Video recorder"); break;
-            case 5: actions.openRoute("Go to", "Calculator"); break;
+            case 5: calcFromList = false; screen = Screen.CALC; break;
             case 6: actions.openRoute("Go to", "Nokia Browser"); break;
             case 7: actions.openRoute("Go to", "Media player"); break;
             case 8: // Conversations
@@ -2386,6 +2545,13 @@ public class NokiaUi extends View {
             case "Help":
                 notice = "Help opened"; // sim notice for Help on fallback pages
                 break;
+            case "Instructions":
+                notice = "Enter numbers with keypad. Move through functions with navigation key and press Select."; // sim notice verbatim
+                break;
+            case "Exit":
+                screen = Screen.IDLE;
+                row = 0;
+                break;
             case "Timed":
                 if (from == Screen.PROFILES) notice = "Timed profile set for 1 hour";
                 break;
@@ -2564,6 +2730,7 @@ public class NokiaUi extends View {
             case GOTO: return new String[]{"Select", "Organise", "Help"};
             case PROFILES: return new String[]{"Activate", "Personalise", "Timed"};
             case ALARM: case ALARM_EDIT: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
+            case CALC: return new String[]{"Scientific calculator", "Loan calculator", "Instructions", "Exit"}; // sim opts.calculator
             case CONTACT_CARD: return new String[]{"Add detail >", "Call", "Edit", "Delete", "Send message >", "View conversations", "Add image >", "Use number", "Set as default", "Change type >", "Copy number", "Send business card >", "Add to group", "Speed dial"};
             case CONTACTS_HOME: return new String[]{"Open", "Search", "Add new", "Memory status"};
             case CALLLOG_HOME: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
@@ -2604,6 +2771,7 @@ public class NokiaUi extends View {
             case PROFILES: return new String[]{"Options", "Activate", "Back"};
             case ALARM: return new String[]{"Options", "Change", "Back"};
             case ALARM_EDIT: return new String[]{"Options", "Save", alarmDigits.length() > 0 ? "Clear" : "Back"};
+            case CALC: return new String[]{"Options", "", calcActive ? "Clear" : "Exit"};
             case CONFIRM_DEL: return new String[]{"Yes", "", "No"};
             case LIST: {
                 String centre = "Select";
