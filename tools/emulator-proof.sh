@@ -623,5 +623,20 @@ for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
 tap_key CENTER; sleep 2; shot 34-equaliser
 tap_key END; sleep 1
 
+# Radio + Voice recorder: menu -> Media -> Radio -> Play -> back -> Voice recorder -> Record -> Stop.
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2
+for i in 1 2 3; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 35-radio
+tap_key CENTER; sleep 2; shot 36-radio-playing
+tap_key RSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 37-voicerec
+tap_key CENTER; sleep 3; shot 38-voicerec-recording
+tap_key CENTER; sleep 2; shot 39-voicerec-saved
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
