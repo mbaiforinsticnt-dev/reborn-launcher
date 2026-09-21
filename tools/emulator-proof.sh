@@ -666,5 +666,36 @@ for i in 1 2 3 4 5; do tap_key RIGHT; sleep 1; done
 tap_key CENTER; sleep 2; shot 46-appslist
 tap_key END; sleep 1
 
+# Media Options -> Settings itemdetail; Apps Options -> Memory status subtree
+# -> Add folder (folder-name page) with the empty-name notice.
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2
+tap_key LSK; sleep 2; shot 47-media-options
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 48-media-settings
+tap_key RSK; sleep 2
+tap_key END; sleep 1
+tap_key CENTER; sleep 2
+for i in 1 2 3 4 5; do tap_key RIGHT; sleep 1; done
+tap_key CENTER; sleep 2
+tap_key LSK; sleep 2; shot 49-apps-options
+for i in 1 2 3 4 5; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 50-memorystatus
+tap_key CENTER; sleep 2; shot 51-phonememory
+tap_key RSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 52-memcard
+tap_key RSK; sleep 2
+tap_key RSK; sleep 2
+tap_key LSK; sleep 2
+for i in 1 2 3 4; do tap_key DOWN; sleep 1; done
+tap_key CENTER; sleep 2; shot 53-foldername
+tap_key CENTER; sleep 2; shot 54-foldername-notice
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
