@@ -697,5 +697,43 @@ tap_key CENTER; sleep 2; shot 53-foldername
 tap_key CENTER; sleep 2; shot 54-foldername-notice
 tap_key END; sleep 1
 
+# Organiser subtree: Calendar -> note types -> editor -> saved note -> view;
+# To-do -> editor -> saved; Notes -> editor -> saved -> view -> list.
+tap_key CENTER; sleep 2
+tap_key RIGHT; sleep 1
+tap_key CENTER; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 55-calendar-empty
+tap_key CENTER; sleep 2; shot 56-caltypes
+tap_key CENTER; sleep 2; shot 57-calnote
+tap_key D6; sleep 2
+tap_key D3; sleep 2
+tap_key D6; sleep 2
+tap_key D6; sleep 2
+shot 58-calnote-typed
+tap_key CENTER; sleep 2; shot 59-calendar-list
+tap_key CENTER; sleep 2; shot 60-calview
+tap_key RSK; sleep 2
+tap_key RSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 61-todolist-empty
+tap_key CENTER; sleep 2; shot 62-todoedit
+tap_key D5; sleep 2
+tap_key D2; sleep 2
+tap_key D6; sleep 2
+shot 63-todoedit-typed
+tap_key CENTER; sleep 2; shot 64-todolist
+tap_key RSK; sleep 2
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2; shot 65-notes-empty
+tap_key CENTER; sleep 2; shot 66-textnote
+tap_key D5; sleep 2
+tap_key D2; sleep 2
+tap_key D6; sleep 2
+tap_key CENTER; sleep 2; shot 67-noteview
+tap_key RSK; sleep 2; shot 68-notes-list
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
