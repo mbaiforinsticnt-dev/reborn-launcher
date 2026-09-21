@@ -311,6 +311,16 @@ public class NokiaUi extends View {
     private Screen noteSubFrom = Screen.LIST; // page a note sub-list returns to
     private boolean bluetoothOn = false;
     private boolean bluetoothPrompt = false;
+    // Sim v4.89 symbol flyout/picker + note mark mode state.
+    private boolean symbolFlyout = false;
+    private int flyoutRow = 0;
+    private boolean symOpen = false;
+    private int symSel = 0;
+    private boolean symTargetNote = false; // sim symTarget: 'note' vs 'compose'
+    private boolean noteMarkStarted = false;
+    private int noteMarkEnd = 0;
+    private static final String[] SYM_EMOJIS = {"\uD83D\uDE00", "\uD83D\uDE02", "\uD83D\uDE0D", "\uD83D\uDC4D", "\u2764\uFE0F", "\uD83C\uDF89", "\uD83D\uDE22", "\uD83D\uDE2E", "\uD83D\uDE09", "\uD83D\uDE4F", "\uD83D\uDD25", "\u2705", "\u263A", "\u2639", "\u2665", "\u2666"};
+    private static final String[] SYM_CHARS = {".", ",", "?", "!", "@", ":", ";", "-", "_", "(", ")", "&", "%", "+", "=", "/", "\u21B5", "\u00A3", "\u20AC", "$", "\u00A5", "\u00A2", "<", ">", "[", "]", "{", "}", "\u2190", "\u2192", "\u2191", "\u2193", "\u00A7", "\u00A9", "\u00AE", "\u2122", "\u00B0", "\u00B1", "\u00D7", "\u00F7", "\u00E1", "\u00E0", "\u00E2", "\u00E4", "\u00E3", "\u00E5", "\u00E6", "\u00E7"};
     private final StringBuilder contactNumber = new StringBuilder();
     private int contactField = 0;
     private boolean composeSent = false;
@@ -457,6 +467,11 @@ public class NokiaUi extends View {
         if (locked) drawLockOverlay(c, w, h);
         if (notice != null) drawNotice(c, w, h);
         if (composeExitConfirm) drawMailboxDialog(c, w, h, "Save message?");
+        if (symbolFlyout) { // Sim: 2-row optionsPanel flyout
+            drawOptionsFlyout(c, w, h, new String[]{"Smiley", "Character"}, flyoutRow);
+        }
+        if (symOpen) drawSymbolPicker(c, w, h);
+        if (noteMarkMode) drawMailboxDialog(c, w, h, "Use navigation key to select text");
         if (bluetoothPrompt) drawMailboxDialog(c, w, h, "Switch Bluetooth on?");
         if (deleteNoteConfirm) drawMailboxDialog(c, w, h, "Delete?");
         if (deleteNotesConfirm > 0) drawMailboxDialog(c, w, h, deleteNotesConfirm == 2 ? "Are you sure? All notes will be deleted." : "Are you sure?");
@@ -496,6 +511,60 @@ public class NokiaUi extends View {
                 listReturn = Screen.IDLE;
                 screen = Screen.LIST;
                 row = 0;
+            }
+            invalidate();
+            return true;
+        }
+        // Sim v4.89 symbol flyout: LSK also confirms (blank-label quirk).
+        if (symbolFlyout) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) flyoutRow = flyoutRow == 0 ? 1 : 0;
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_SOFT_LEFT) {
+                symTargetNote = true;
+                symbolFlyout = false;
+                symOpen = true;
+                symSel = 0;
+            } else if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) symbolFlyout = false;
+            invalidate();
+            return true;
+        }
+        // Sim v4.89 symbol picker: +-4 vertical even on the 5-col grid (quirk).
+        if (symOpen) {
+            String[] set = symTargetNote && flyoutRow == 0 ? SYM_EMOJIS : SYM_CHARS;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP) symSel = (symSel + set.length - 4) % set.length;
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) symSel = (symSel + 4) % set.length;
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) symSel = (symSel + set.length - 1) % set.length;
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) symSel = (symSel + 1) % set.length;
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                String sym = set[symSel].equals("\u21B5") ? "\n" : set[symSel];
+                if (symTargetNote) noteTap.set(noteTap.text() + sym);
+                else composeTap.set(composeTap.text() + sym);
+                symOpen = false;
+                symTargetNote = false;
+            } else if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
+                symOpen = false;
+                if (symTargetNote) symbolFlyout = true; // sim: picker Back returns to the flyout
+            }
+            invalidate();
+            return true;
+        }
+        // Sim v4.89 note mark mode: selection starts at 0, extends with the nav keys.
+        if (noteMarkMode) {
+            if (!noteMarkStarted && keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                noteMarkStarted = true;
+                noteMarkEnd = 0;
+            } else if (noteMarkStarted && (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_UP)) {
+                noteMarkEnd = Math.max(0, noteMarkEnd - 1);
+            } else if (noteMarkStarted && (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_DOWN)) {
+                noteMarkEnd = Math.min(noteTap.text().length(), noteMarkEnd + 1);
+            } else if (noteMarkStarted && keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                // Sim slice(0, max||1): an empty mark still copies the first char.
+                noteClipboard = noteTap.text().substring(0, Math.max(noteMarkEnd, 1));
+                noteMarkMode = false;
+                noteMarkStarted = false;
+                notice = "Copied"; // sim notice verbatim
+            } else if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT || keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
+                noteMarkMode = false;
+                noteMarkStarted = false;
             }
             invalidate();
             return true;
@@ -3207,6 +3276,81 @@ public class NokiaUi extends View {
                 : "Auto-repeat  " + (countdownAutoRepeat ? "On" : "Off"), null, null);
     }
 
+    // Sim v4.89 symbol flyout: small optionsPanel with 2 rows, flat #386078 sel.
+    private void drawOptionsFlyout(Canvas c, int w, int h, String[] items, int selRow) {
+        float ux = w / 240f;
+        float left = w * 0.13f, right = w * 0.05f;
+        float top = h * 0.30f, rowH = 26 * ux;
+        float pw = w - left - right;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#E7E7E7"));
+        c.drawRect(left, top, left + pw, top + rowH * items.length + 4 * ux, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2 * ux);
+        p.setColor(Color.parseColor("#555555"));
+        c.drawRect(left, top, left + pw, top + rowH * items.length + 4 * ux, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTextSize(13 * ux);
+        for (int i = 0; i < items.length; i++) {
+            float ry = top + 2 * ux + i * rowH;
+            if (i == selRow) {
+                p.setColor(Color.parseColor("#386078"));
+                c.drawRect(left + 2 * ux, ry, left + pw - 2 * ux, ry + rowH, p);
+                p.setColor(Color.WHITE);
+                p.setFakeBoldText(true);
+            } else {
+                p.setColor(Color.parseColor("#111111"));
+            }
+            c.drawText(items[i], left + 8 * ux, ry + rowH * 0.68f, p);
+            p.setFakeBoldText(false);
+        }
+    }
+
+    // Sim v4.89 symbol picker: grid overlay, 4 cols emoji / 5 cols chars.
+    private void drawSymbolPicker(Canvas c, int w, int h) {
+        String[] set = symTargetNote && flyoutRow == 0 ? SYM_EMOJIS : SYM_CHARS;
+        int cols = symTargetNote && flyoutRow == 0 ? 4 : 5;
+        float ux = w / 240f;
+        float left = w * 0.04f, right = w * 0.07f;
+        float top = h * 0.13f, maxH = h * 0.72f;
+        float pw = w - left - right;
+        float cellW = pw / cols;
+        float cellH = Math.max(25 * ux, cellW * 0.7f);
+        int rows = (set.length + cols - 1) / cols;
+        float gridH = Math.min(maxH, rows * cellH);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#E7E7E7"));
+        c.drawRect(left, top, left + pw, top + gridH, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2 * ux);
+        p.setColor(Color.parseColor("#555555"));
+        c.drawRect(left, top, left + pw, top + gridH, p);
+        // Sim: 7px #777 right border with a 32%-height light scrollbar block.
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#777777"));
+        c.drawRect(left + pw, top, left + pw + 7 * ux, top + gridH, p);
+        p.setColor(Color.parseColor("#EEEEEE"));
+        c.drawRect(left + pw, top, left + pw + 7 * ux, top + gridH * 0.32f, p);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(15 * ux);
+        for (int i = 0; i < set.length; i++) {
+            int r = i / cols, col = i % cols;
+            float cx = left + col * cellW + cellW / 2f;
+            float cy = top + r * cellH + cellH * 0.68f;
+            if (cy > top + gridH) break; // sim overflow:hidden
+            if (i == symSel) {
+                p.setColor(Color.parseColor("#386078"));
+                c.drawRect(left + col * cellW + 1, top + r * cellH + 1, left + (col + 1) * cellW - 1, top + (r + 1) * cellH - 1, p);
+                p.setColor(Color.WHITE);
+            } else {
+                p.setColor(Color.parseColor("#111111"));
+            }
+            c.drawText(set[i], cx, cy, p);
+        }
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
     // Sim usedetail regexes: phone / e-mail / web present in the note body.
     private static boolean[] noteDetailHits(String body) {
         return new boolean[]{
@@ -4189,8 +4333,17 @@ public class NokiaUi extends View {
                 }
                 break;
             case "Insert symbol >":
-                // Sim opens the symbol flyout + picker; queued with the picker grids.
-                if (from == Screen.TEXTNOTE) notice = item + " selected";
+                // Sim textnote: opens the 2-row flyout (Smiley/Character).
+                if (from == Screen.TEXTNOTE) { symbolFlyout = true; flyoutRow = 0; }
+                break;
+            case "Insert symbol":
+                // Sim compose: straight to the character picker, no flyout.
+                if (from == Screen.COMPOSE_NUMBER || from == Screen.COMPOSE_TEXT) {
+                    symTargetNote = false;
+                    flyoutRow = 1;
+                    symOpen = true;
+                    symSel = 0;
+                }
                 break;
             case "Instructions":
                 notice = "Enter numbers with keypad. Move through functions with navigation key and press Select."; // sim notice verbatim
@@ -4570,6 +4723,9 @@ public class NokiaUi extends View {
 
     private String[] softLabels() {
         if (composeExitConfirm) return new String[]{"Yes", "", "No"};
+        if (symbolFlyout) return new String[]{"", "Select", "Back"};
+        if (symOpen) return new String[]{"", "Use", "Back"};
+        if (noteMarkMode) return new String[]{"Cancel", noteMarkStarted ? "Copy" : "Start", "Back"};
         if (bluetoothPrompt) return new String[]{"Yes", "", "No"};
         if (deleteNoteConfirm) return new String[]{"Yes", "", "No"};
         if (deleteNotesConfirm > 0) return new String[]{"", "Yes", "No"};
