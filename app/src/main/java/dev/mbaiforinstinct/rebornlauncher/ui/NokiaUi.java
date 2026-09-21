@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT
     }
 
     public interface Actions {
@@ -38,6 +38,8 @@ public class NokiaUi extends View {
         void clearDrafts();
         int getProfile();
         void setProfile(int index);
+        String[] getAlarm();
+        void setAlarm(String[] state);
         boolean addContact(String name, String number);
         boolean updateContact(String oldName, String oldNumber, String newName, String newNumber);
         boolean deleteContact(String name, String number);
@@ -267,6 +269,8 @@ public class NokiaUi extends View {
     private boolean composeSent = false;
     private boolean composeExitConfirm = false;
     private String notice = null;
+    private String alarmDigits = "";
+    private boolean alarmFromList = false;
     private final List<String[]> drafts = new ArrayList<>();
 
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -301,6 +305,8 @@ public class NokiaUi extends View {
             case GOTO: drawGoto(c, w, h); break;
             case LIST: drawList(c, w, h); break;
             case PROFILES: drawProfiles(c, w, h); break;
+            case ALARM: drawAlarm(c, w, h); break;
+            case ALARM_EDIT: drawAlarmEdit(c, w, h); break;
             case CONFIRM_DEL: drawConfirmDelete(c, w, h); break;
             case THREADS: drawThreads(c, w, h); break;
             case CONVERSATION: drawConversation(c, w, h); break;
@@ -445,6 +451,9 @@ public class NokiaUi extends View {
                 break;
             case DIALER:
                 if (dialNumber.length() < 24) dialNumber.append(d);
+                break;
+            case ALARM_EDIT:
+                if (alarmDigits.length() < 4) alarmDigits = alarmDigits + d;
                 break;
             case COMPOSE_NUMBER:
                 if (resolvedFocus() == 0) {
@@ -603,6 +612,14 @@ public class NokiaUi extends View {
             case OPTIONS: screen = optionsFrom; break;
             case MENU: screen = Screen.IDLE; row = 0; break;
             case GOTO: screen = Screen.IDLE; row = 0; break;
+            case ALARM:
+                if (alarmFromList) { screen = Screen.LIST; listSection = 1; row = 0; }
+                else { screen = Screen.GOTO; row = 2; }
+                break;
+            case ALARM_EDIT:
+                if (alarmDigits.length() > 0) alarmDigits = alarmDigits.substring(0, alarmDigits.length() - 1);
+                else screen = Screen.ALARM;
+                break;
             case PROFILES:
                 if (profilesFromSettings) {
                     profilesFromSettings = false;
@@ -689,6 +706,7 @@ public class NokiaUi extends View {
         switch (screen) {
             case GOTO: return GOTO_ROWS.length;
             case PROFILES: return PROFILE_ROWS.length;
+            case ALARM: return 5;
             case LIST: return listSection == 11 ? drafts.size() : LIST_ITEMS[listSection].length;
             case THREADS: return convos.size();
             case CONVERSATION: return Math.max(convoMsgs.size(), 1);
@@ -718,6 +736,12 @@ public class NokiaUi extends View {
                 break;
             case PROFILES:
                 activateProfile();
+                break;
+            case ALARM:
+                alarmChange();
+                break;
+            case ALARM_EDIT:
+                alarmSave();
                 break;
             case CONFIRM_DEL:
                 deleteAllMessages();
@@ -1009,6 +1033,12 @@ public class NokiaUi extends View {
             return;
         }
         if (listSection == 1) {
+            if (row == 0) { // sim organiser row 0 opens the alarm clock page
+                alarmFromList = true;
+                screen = Screen.ALARM;
+                row = 0;
+                return;
+            }
             actions.openRoute(LIST_TITLES[listSection], LIST_ITEMS[listSection][row]);
         }
         // Remaining sections are sim-static pages: rows are information only.
@@ -1361,7 +1391,7 @@ public class NokiaUi extends View {
         }
         String[] items = LIST_ITEMS[listSection];
         LabelAt subs = null;
-        if (listSection == 1) subs = i -> i == 0 ? "Off" : null; // sim alarm default Off
+        if (listSection == 1) subs = i -> i == 0 ? (alarm()[0].equals("1") ? "On" : "Off") : null; // sim organiser row 0 sub: alarm On/Off
         else if (listSection == 37) subs = i -> i == 1 ? "Dark.nth" : null; // sim theme sub
         drawItemRows(c, w, h, items.length, i -> items[i], subs, i -> listIconFor(i));
     }
@@ -1434,6 +1464,102 @@ public class NokiaUi extends View {
                 i -> PROFILE_ROWS[i] + (i == profile() ? "  \u2713" : ""), null, i -> profileIcon);
     }
 
+    private String[] alarm() { return actions.getAlarm(); }
+
+    // Sim v4.89 alarmclock select: toggle On/Repeat, cycle tone/snooze, row 1
+    // opens the time editor prefilled with the current digits.
+    private void alarmChange() {
+        String[] a = alarm();
+        switch (row) {
+            case 0: a[0] = a[0].equals("1") ? "0" : "1"; break;
+            case 1:
+                alarmDigits = a[1].replace(":", "");
+                screen = Screen.ALARM_EDIT;
+                return;
+            case 2: a[2] = a[2].equals("1") ? "0" : "1"; break;
+            case 3: {
+                String[] tones = {"Nokia tune", "Clock alert", "Beep once"};
+                int i = java.util.Arrays.asList(tones).indexOf(a[3]);
+                a[3] = tones[(i + 1) % tones.length];
+                break;
+            }
+            case 4: {
+                String[] snoozes = {"5", "10", "15", "30"};
+                int i = java.util.Arrays.asList(snoozes).indexOf(a[4]);
+                a[4] = snoozes[(i + 1) % snoozes.length];
+                break;
+            }
+            default: return;
+        }
+        actions.setAlarm(a);
+    }
+
+    // Sim v4.89 alarmedit Save: 4 digits, HH<24, MM<60; a good set turns the
+    // alarm on; anything else shows the "Invalid time" notice.
+    private void alarmSave() {
+        if (alarmDigits.length() == 4) {
+            int hh = Integer.parseInt(alarmDigits.substring(0, 2));
+            int mm = Integer.parseInt(alarmDigits.substring(2));
+            if (hh < 24 && mm < 60) {
+                String[] a = alarm();
+                a[1] = alarmDigits.substring(0, 2) + ":" + alarmDigits.substring(2);
+                a[0] = "1";
+                actions.setAlarm(a);
+                screen = Screen.ALARM;
+                return;
+            }
+        }
+        notice = "Invalid time";
+    }
+
+    // Sim v4.89 alarmclock page: title + 5 rows, every row carries the
+    // assets[6] fallback icon (no listIcons map entry for alarmclock).
+    private void drawAlarm(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Alarm clock");
+        String[] a = alarm();
+        String[] labels = {
+                "Alarm  " + (a[0].equals("1") ? "On" : "Off"),
+                "Alarm time  " + a[1],
+                "Repeat  " + (a[2].equals("1") ? "On" : "Off"),
+                "Alarm tone  " + a[3],
+                "Snooze  " + a[4] + " min",
+        };
+        drawItemRows(c, w, h, labels.length, i -> labels[i], null, i -> genericIcon());
+    }
+
+    // Sim v4.89 alarmedit page: title + the dial page's .dialNumber gradient
+    // box showing HH:MM padded with underscores, then the .calcHint line.
+    private void drawAlarmEdit(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Alarm time");
+        float areaH = softTop(h) - statusH(h);
+        float u = areaH / 258f;
+        float ux = w / 240f;
+        float boxTop = statusH(h) + titleH(h);
+        float boxH = 140 * u;
+        android.graphics.RectF box = new android.graphics.RectF(0, boxTop, w, boxTop + boxH);
+        p.setShader(new android.graphics.LinearGradient(0, boxTop, 0, boxTop + boxH,
+                Color.parseColor("#DDDDDD"), Color.parseColor("#AAAAAA"), android.graphics.Shader.TileMode.CLAMP));
+        c.drawRoundRect(box, 5 * ux, 5 * ux, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1f, ux));
+        p.setColor(Color.parseColor("#777777"));
+        c.drawRoundRect(box, 5 * ux, 5 * ux, p);
+        p.setStyle(Paint.Style.FILL);
+        String d = (alarmDigits + "____").substring(0, 4);
+        p.setColor(Color.parseColor("#111111"));
+        p.setTextSize(42 * ux);
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText(d.substring(0, 2) + ":" + d.substring(2), w - 10 * ux, boxTop + 106 * u, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        // Sim .calcHint: padding 10px, 13px white text (body color).
+        p.setColor(Color.WHITE);
+        p.setTextSize(13 * ux);
+        p.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        c.drawText("Enter time (24-hour)", 10 * ux, boxTop + boxH + 23 * u, p);
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
     // Sim v4.89 confirmdelete page: title + .mailboxDialog centred box
     // (inset 18% top / 8% sides / 25% bottom, #111923, 2px #ddd border).
     private void drawConfirmDelete(Canvas c, int w, int h) {
@@ -1489,7 +1615,7 @@ public class NokiaUi extends View {
                 screen = Screen.IDLE;
                 row = 0;
                 break;
-            case 2: actions.openRoute("Organiser", "Alarm clock"); break;
+            case 2: alarmFromList = false; screen = Screen.ALARM; row = 0; break;
             case 3: actions.openRoute("Go to", "Camera"); break;
             case 4: actions.openRoute("Go to", "Video recorder"); break;
             case 5: actions.openRoute("Go to", "Calculator"); break;
@@ -2245,7 +2371,9 @@ public class NokiaUi extends View {
         screen = from;
         switch (item) {
             case "Open": case "View":
-                if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; screen = Screen.READ; }
+                if (from == Screen.ALARM) alarmChange();
+                else if (from == Screen.ALARM_EDIT) alarmSave();
+                else if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; screen = Screen.READ; }
                 else if (from == Screen.CONTACTS_HOME || from == Screen.CALLLOG_HOME) selectCurrent();
                 else if (from == Screen.LIST) selectListItem();
                 break;
@@ -2254,6 +2382,9 @@ public class NokiaUi extends View {
                 break;
             case "Activate":
                 if (from == Screen.PROFILES) activateProfile();
+                break;
+            case "Help":
+                notice = "Help opened"; // sim notice for Help on fallback pages
                 break;
             case "Timed":
                 if (from == Screen.PROFILES) notice = "Timed profile set for 1 hour";
@@ -2432,6 +2563,7 @@ public class NokiaUi extends View {
             case MENU: return new String[]{"Main menu view", "Organise", "Help"};
             case GOTO: return new String[]{"Select", "Organise", "Help"};
             case PROFILES: return new String[]{"Activate", "Personalise", "Timed"};
+            case ALARM: case ALARM_EDIT: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
             case CONTACT_CARD: return new String[]{"Add detail >", "Call", "Edit", "Delete", "Send message >", "View conversations", "Add image >", "Use number", "Set as default", "Change type >", "Copy number", "Send business card >", "Add to group", "Speed dial"};
             case CONTACTS_HOME: return new String[]{"Open", "Search", "Add new", "Memory status"};
             case CALLLOG_HOME: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
@@ -2470,6 +2602,8 @@ public class NokiaUi extends View {
             case MENU: return new String[]{"Options", "Select", "Exit"};
             case GOTO: return new String[]{"Options", "Select", "Back"};
             case PROFILES: return new String[]{"Options", "Activate", "Back"};
+            case ALARM: return new String[]{"Options", "Change", "Back"};
+            case ALARM_EDIT: return new String[]{"Options", "Save", alarmDigits.length() > 0 ? "Clear" : "Back"};
             case CONFIRM_DEL: return new String[]{"Yes", "", "No"};
             case LIST: {
                 String centre = "Select";
