@@ -4305,18 +4305,26 @@ public class NokiaUi extends View {
             case "Clear text":
                 if (from == Screen.TEXTNOTE) noteTap.clear();
                 break;
-            case "Editing options >":
-                // Sim: the editing-options list opens from either editor page.
+            case "Editing options >": case "Editing options":
+                // Sim: the editing-options list opens from either note editor page;
+                // in the composer it only shows this notice (sim quirk).
                 if (from == Screen.TEXTNOTE || from == Screen.NOTEVIEW) {
                     noteSubFrom = from;
                     listSection = 45; screen = Screen.LIST; row = 0;
+                } else if (from == Screen.COMPOSE_NUMBER || from == Screen.COMPOSE_TEXT) {
+                    notice = "Copy / Cut / Paste"; // sim notice verbatim
                 }
                 break;
-            case "Writing language >":
-                if (from == Screen.TEXTNOTE) { noteSubFrom = from; listSection = 46; screen = Screen.LIST; row = 0; }
+            case "Writing language >": case "Writing language":
+                // Sim: opens the same writinglanguage page from textnote and compose.
+                if (from == Screen.TEXTNOTE || from == Screen.COMPOSE_NUMBER || from == Screen.COMPOSE_TEXT) {
+                    noteSubFrom = from; listSection = 46; screen = Screen.LIST; row = 0;
+                }
                 break;
-            case "Prediction options >":
-                if (from == Screen.TEXTNOTE) { noteSubFrom = from; listSection = 47; screen = Screen.LIST; row = 0; }
+            case "Prediction options >": case "Prediction options":
+                if (from == Screen.TEXTNOTE || from == Screen.COMPOSE_NUMBER || from == Screen.COMPOSE_TEXT) {
+                    noteSubFrom = from; listSection = 47; screen = Screen.LIST; row = 0;
+                }
                 break;
             case "Use detail >":
                 if (from == Screen.NOTEVIEW || (from == Screen.LIST && listSection == 43)) {
