@@ -492,9 +492,11 @@ public class NokiaUi extends View {
     public boolean handleKey(int keyCode) {
         // Sim v4.89 keypad lock: swallow everything except Unlock (left key) then *.
         if (locked) {
-            if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT) { unlockPending = true; }
-            else if (keyCode == KeyEvent.KEYCODE_STAR && unlockPending) { locked = false; unlockPending = false; }
-            else unlockPending = false;
+            // Sim v4.89 verbatim: Unlock -> notice 'Now press *'; '*' -> unlocked;
+            // any other key -> notice 'Keypad locked'.
+            if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT) { unlockPending = true; notice = "Now press *"; }
+            else if (keyCode == KeyEvent.KEYCODE_STAR && unlockPending) { locked = false; unlockPending = false; notice = "Keypad unlocked"; }
+            else { unlockPending = false; notice = "Keypad locked"; }
             invalidate();
             return true;
         }
@@ -3748,21 +3750,7 @@ public class NokiaUi extends View {
         p.setTextSize(w * 0.05f);
         c.drawText("Press Unlock, then *", w * 0.5f, cy + w * 0.24f, p);
         p.setTypeface(Typeface.DEFAULT);
-        if (unlockPending) {
-            float boxW = w * 0.76f, boxH = w * 0.12f;
-            float bx = (w - boxW) / 2f, by = bot - (bot - top) * 0.12f - boxH;
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.parseColor("#EEEEEE"));
-            c.drawRect(bx, by, bx + boxW, by + boxH, p);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(w * 0.008f);
-            p.setColor(Color.parseColor("#555555"));
-            c.drawRect(bx, by, bx + boxW, by + boxH, p);
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.parseColor("#111111"));
-            p.setTextSize(w * 0.055f);
-            c.drawText("Now press *", w * 0.5f, by + boxH * 0.65f, p);
-        }
+        // Sim: no pending-state box - the 'Now press *' notice carries it.
         p.setTextAlign(Paint.Align.LEFT);
     }
 
