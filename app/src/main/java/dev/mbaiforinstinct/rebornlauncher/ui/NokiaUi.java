@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS, USEDETAILNUM, LOADINGNOTE
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS, USEDETAILNUM, LOADINGNOTE, SCIENTIFIC, LOANINTRO, LOANCALC
     }
 
     public interface Actions {
@@ -320,6 +320,14 @@ public class NokiaUi extends View {
     private boolean noteMarkStarted = false;
     private int noteMarkEnd = 0;
     private static final String[] SYM_EMOJIS = {"\uD83D\uDE00", "\uD83D\uDE02", "\uD83D\uDE0D", "\uD83D\uDC4D", "\u2764\uFE0F", "\uD83C\uDF89", "\uD83D\uDE22", "\uD83D\uDE2E", "\uD83D\uDE09", "\uD83D\uDE4F", "\uD83D\uDD25", "\u2705", "\u263A", "\u2639", "\u2665", "\u2666"};
+    // Sim v4.89 scientific + loan calculator state.
+    private int sciSel = 0;
+    private final String[] loanFields = {"", "", "", ""};
+    private int loanField = 0;
+    private boolean loanResult = false;
+    private boolean loanEditing = false; // sim 'loanediting' pseudo-page
+    private Screen loanFrom = Screen.CALC;
+    private static final String[] SCI_OPS = {"sin", "cos", "tan", "\u221A", "x\u00B2", "log", "ln", "\u03C0", "1/x", "%", "\u00F7", "\u00D7", "\u2212", "+", "="};
     private static final String[] SYM_CHARS = {".", ",", "?", "!", "@", ":", ";", "-", "_", "(", ")", "&", "%", "+", "=", "/", "\u21B5", "\u00A3", "\u20AC", "$", "\u00A5", "\u00A2", "<", ">", "[", "]", "{", "}", "\u2190", "\u2192", "\u2191", "\u2193", "\u00A7", "\u00A9", "\u00AE", "\u2122", "\u00B0", "\u00B1", "\u00D7", "\u00F7", "\u00E1", "\u00E0", "\u00E2", "\u00E4", "\u00E3", "\u00E5", "\u00E6", "\u00E7"};
     private final StringBuilder contactNumber = new StringBuilder();
     private int contactField = 0;
@@ -435,6 +443,9 @@ public class NokiaUi extends View {
             case CDSETTINGS: drawCdSettings(c, w, h); break;
             case USEDETAILNUM: drawUseDetailNumber(c, w, h); break;
             case LOADINGNOTE: drawLoadingNote(c, w, h); break;
+            case SCIENTIFIC: drawScientific(c, w, h); break;
+            case LOANINTRO: drawLoanIntro(c, w, h); break;
+            case LOANCALC: drawLoanCalc(c, w, h); break;
             case VIDEOREC: drawVideoRec(c, w, h); break;
             case RADIO: drawRadio(c, w, h); break;
             case VOICEREC: drawVoiceRec(c, w, h); break;
@@ -696,6 +707,14 @@ public class NokiaUi extends View {
             case ALARM_EDIT:
                 if (alarmDigits.length() < 4) alarmDigits = alarmDigits + d;
                 break;
+            case LOANCALC:
+                if (loanResult) { // sim: any key after a result resets the form first
+                    for (int i = 0; i < 4; i++) loanFields[i] = "";
+                    loanResult = false;
+                }
+                loanFields[loanField] += d;
+                break;
+            case SCIENTIFIC:
             case CALC:
                 if (calc.length() < 12) calc = calc.equals("0") ? String.valueOf(d) : calc + d;
                 calcActive = true;
@@ -747,13 +766,20 @@ public class NokiaUi extends View {
     }
 
     private void symbol(String s) {
-        if (screen == Screen.CALC) {
+        if (screen == Screen.SCIENTIFIC || screen == Screen.CALC) {
             if (s.equals("*")) {
                 if (!calc.contains(".")) calc = (calc.isEmpty() ? "0" : calc) + ".";
             } else {
                 calc = calc.isEmpty() ? "-" : jsNum(-parseNum(calc));
             }
             calcActive = true;
+        } else if (screen == Screen.LOANCALC) {
+            // Sim: any key after a result resets first; '*' adds a dot; '#' is inert.
+            if (loanResult) {
+                for (int i = 0; i < 4; i++) loanFields[i] = "";
+                loanResult = false;
+            }
+            if (s.equals("*") && !loanFields[loanField].contains(".")) loanFields[loanField] += ".";
         }
         else if (screen == Screen.DIALER && dialNumber.length() < 24) dialNumber.append(s);
         else if (screen == Screen.COMPOSE_NUMBER && resolvedFocus() == 0 && composeNumber.length() < 24) composeNumber.append(s);
@@ -883,7 +909,28 @@ public class NokiaUi extends View {
 
     private void back() {
         switch (screen) {
-            case OPTIONS: screen = optionsFrom; break;
+            case OPTIONS:
+                // Sim: RSK on the loanediting panel returns to the full list, 'Exit' pre-selected.
+                if (loanEditing && optionsFrom == Screen.LOANCALC) {
+                    loanEditing = false;
+                    optionsItems = optionsItemsFor(Screen.LOANCALC);
+                    optionsSel = 4;
+                } else screen = optionsFrom;
+                break;
+            case SCIENTIFIC:
+                // Sim: RSK on the scientific page only backspaces, never exits.
+                calc = calc.length() > 1 ? calc.substring(0, calc.length() - 1) : "0";
+                break;
+            case LOANINTRO: screen = loanFrom; break;
+            case LOANCALC:
+                if (loanResult) {
+                    for (int i = 0; i < 4; i++) loanFields[i] = "";
+                    loanResult = false;
+                    loanField = 0;
+                } else if (!loanFields[loanField].isEmpty()) {
+                    loanFields[loanField] = loanFields[loanField].substring(0, loanFields[loanField].length() - 1);
+                } else screen = Screen.LOANINTRO;
+                break;
             case MENU: screen = Screen.IDLE; row = 0; break;
             case GOTO: screen = Screen.IDLE; row = 0; break;
             case ALARM:
@@ -1064,6 +1111,8 @@ public class NokiaUi extends View {
             return;
         }
         if (screen == Screen.CALC) { calcOperator(delta < 0 ? "+" : "\u2212"); return; } // sim: UP=+, DOWN=-
+        if (screen == Screen.SCIENTIFIC) { sciSel = (sciSel + (delta < 0 ? 10 : 5)) % 15; return; } // sim: 5-col wrap
+        if (screen == Screen.LOANCALC) { loanField = (loanField + (delta > 0 ? 1 : 3)) % 4; return; } // sim field nav
         if (screen == Screen.OPTIONS) {
             if (optionsItems.length > 0) optionsSel = (optionsSel + delta + optionsItems.length) % optionsItems.length;
             return;
@@ -1099,6 +1148,7 @@ public class NokiaUi extends View {
             return;
         }
         if (screen == Screen.CALC) { calcOperator(delta < 0 ? "\u00D7" : "\u00F7"); return; } // sim: LEFT=x, RIGHT=/
+        if (screen == Screen.SCIENTIFIC) { sciSel = (sciSel + (delta < 0 ? 14 : 1)) % 15; return; } // sim: +-1 wrap
         if (screen == Screen.MENU) {
             selected = (selected + delta + MENU_ITEMS.length) % MENU_ITEMS.length;
         }
@@ -1348,6 +1398,9 @@ public class NokiaUi extends View {
                 if (row == 0) countdownTone = countdownTone.equals("Clock alert") ? "Nokia tune" : "Clock alert";
                 else countdownAutoRepeat = !countdownAutoRepeat;
                 break;
+            case SCIENTIFIC: scientificApply(); break;
+            case LOANINTRO: screen = Screen.LOANCALC; break;
+            case LOANCALC: calculateLoan(); break;
             case USEDETAILNUM:
                 notice = "Number ready to save"; // sim notice verbatim
                 break;
@@ -3351,6 +3404,172 @@ public class NokiaUi extends View {
         p.setTextAlign(Paint.Align.LEFT);
     }
 
+    // Sim v4.89 scientific page: title + mode line + display + 5x3 op grid.
+    private void drawScientific(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Scientific calculator");
+        float ux = w / 240f;
+        float top = statusH(h) + titleH(h);
+        // Sim .calcMode line: 10px, #bed5e0.
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#BED5E0"));
+        p.setTextSize(10 * ux);
+        p.setTextAlign(Paint.Align.LEFT);
+        if (calcStored != null && !calcOp.isEmpty())
+            c.drawText(jsNum(calcStored) + " " + calcOp, 8 * ux, top + 12 * ux, p);
+        float boxTop = top + 16 * ux;
+        float boxH = 60 * ux;
+        float boxL = 7 * ux, boxR = w - 7 * ux;
+        p.setColor(Color.parseColor("#F4F6ED"));
+        c.drawRect(boxL, boxTop, boxR, boxTop + boxH, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1f, ux));
+        p.setColor(Color.parseColor("#777777"));
+        c.drawRect(boxL, boxTop, boxR, boxTop + boxH, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#111111"));
+        p.setTypeface(Typeface.MONOSPACE);
+        p.setTextSize(20 * ux);
+        p.setTextAlign(Paint.Align.RIGHT);
+        c.drawText(calc, boxR - 6 * ux, boxTop + boxH - 12 * ux, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTypeface(Typeface.DEFAULT);
+        // Sim .calcGrid: 5 cols, #eef0e8, 31px cells, #486b80 sel.
+        float gridTop = boxTop + boxH + 8 * ux;
+        float cellW = (w - 14 * ux) / 5f;
+        float cellH = 31 * ux;
+        for (int i = 0; i < SCI_OPS.length; i++) {
+            int r = i / 5, col = i % 5;
+            float cx = 7 * ux + col * cellW, cy = gridTop + r * cellH;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(i == sciSel ? Color.parseColor("#486B80") : Color.parseColor("#EEF0E8"));
+            c.drawRect(cx, cy, cx + cellW, cy + cellH, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(1);
+            p.setColor(Color.parseColor(i == sciSel ? "#486B80" : "#AAAAAA"));
+            c.drawRect(cx, cy, cx + cellW, cy + cellH, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(i == sciSel ? Color.WHITE : Color.parseColor("#111111"));
+            p.setTextSize(14 * ux);
+            p.setTextAlign(Paint.Align.CENTER);
+            c.drawText(SCI_OPS[i], cx + cellW / 2f, cy + cellH * 0.68f, p);
+        }
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
+    // Sim scientific OK applies the selected op; '%' is inert (quirk).
+    private void scientificApply() {
+        String o = SCI_OPS[sciSel];
+        double n;
+        try { n = calc.isEmpty() ? 0 : Double.parseDouble(calc); } catch (Exception e) { n = 0; }
+        if (o.equals("sin") || o.equals("cos") || o.equals("tan")) {
+            double rad = n * Math.PI / 180;
+            double v = o.equals("sin") ? Math.sin(rad) : o.equals("cos") ? Math.cos(rad) : Math.tan(rad);
+            calc = jsNum(v);
+        } else if (o.equals("\u221A")) calc = jsNum(Math.sqrt(n));
+        else if (o.equals("x\u00B2")) calc = jsNum(n * n);
+        else if (o.equals("log")) calc = jsNum(Math.log10(n));
+        else if (o.equals("ln")) calc = jsNum(Math.log(n));
+        else if (o.equals("\u03C0")) calc = jsNum(Math.PI);
+        else if (o.equals("1/x")) calc = jsNum(1 / n);
+        else if (o.equals("\u00F7") || o.equals("\u00D7") || o.equals("\u2212") || o.equals("+")) {
+            calcStored = n;
+            calcOp = o;
+            calc = "0";
+        } else if (o.equals("=") && calcStored != null) {
+            calcEquals();
+        }
+        // '%' falls through inert, exactly like the sim.
+        calcActive = true;
+    }
+
+    // Sim v4.89 loanintro page: title + guide text, soft /OK/Back.
+    private void drawLoanIntro(Canvas c, int w, h) {
+        drawTitle(c, w, h, "Loan calculator");
+        float ux = w / 240f;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#111111"));
+        p.setTextSize(13 * ux);
+        p.setTextAlign(Paint.Align.LEFT);
+        String[] lines = {"Calculate either loan amount, annual", "interest rate, loan period or monthly", "instalment.", "", "Enter values for three fields,", "highlight the fourth and select", "Calculate."};
+        float y = statusH(h) + titleH(h) + 22 * ux;
+        for (String ln : lines) { c.drawText(ln, 10 * ux, y, p); y += 13 * ux * 1.7f; }
+    }
+
+    // Sim v4.89 loancalc page: 4 labelled fields, active outlined #59809a.
+    private void drawLoanCalc(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Loan calculator");
+        String[] labs = {"Loan amount", "Annual interest rate (%)", "Loan period (months)", "Monthly instalment"};
+        float ux = w / 240f;
+        float y = statusH(h) + titleH(h) + 8 * ux;
+        for (int i = 0; i < 4; i++) {
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#BED5E0"));
+            p.setTextSize(10 * ux);
+            p.setTextAlign(Paint.Align.LEFT);
+            c.drawText(labs[i], 8 * ux, y + 9 * ux, p);
+            float fy = y + 12 * ux;
+            float fh = 24 * ux;
+            p.setColor(Color.parseColor("#F4F6ED"));
+            c.drawRect(8 * ux, fy, w - 8 * ux, fy + fh, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1f, ux));
+            p.setColor(Color.parseColor("#777777"));
+            c.drawRect(8 * ux, fy, w - 8 * ux, fy + fh, p);
+            if (i == loanField) { // sim .loanField.active div outline
+                p.setStrokeWidth(2 * ux);
+                p.setColor(Color.parseColor("#59809A"));
+                c.drawRect(8 * ux, fy, w - 8 * ux, fy + fh, p);
+            }
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#111111"));
+            p.setTextSize(13 * ux);
+            p.setTextAlign(Paint.Align.RIGHT);
+            c.drawText(loanFields[i], w - 12 * ux, fy + fh * 0.68f, p);
+            y = fy + fh + 7 * ux;
+        }
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
+    // Sim loanPayment(): monthly payment; r=0 falls back to straight division.
+    private static double loanPayment(double P, double annual, double n) {
+        double r = annual / 1200;
+        return r != 0 ? P * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1) : P / n;
+    }
+
+    private static double loanNum(String v) {
+        if (v.isEmpty()) return 0;
+        try { return Double.parseDouble(v); } catch (Exception e) { return Double.NaN; }
+    }
+
+    // Sim calculateLoan(): solve the highlighted empty field from the other three.
+    private void calculateLoan() {
+        int filled = 0;
+        for (String f : loanFields) if (!f.isEmpty()) filled++;
+        if (filled != 3 || !loanFields[loanField].isEmpty()) return;
+        double P = loanNum(loanFields[0]), annual = loanNum(loanFields[1]);
+        double n = loanNum(loanFields[2]), pay = loanNum(loanFields[3]);
+        double v = 0;
+        if (loanField == 3 && P > 0 && n > 0) v = loanPayment(P, annual, n);
+        else if (loanField == 0 && pay > 0 && n > 0) {
+            double unit = loanPayment(1, annual, n);
+            v = unit != 0 ? pay / unit : 0;
+        } else if (loanField == 1 && P > 0 && n > 0 && pay > 0) {
+            double lo = 0, hi = 1000;
+            for (int i = 0; i < 80; i++) { double mid = (lo + hi) / 2; if (loanPayment(P, mid, n) > pay) hi = mid; else lo = mid; }
+            v = (lo + hi) / 2;
+        } else if (loanField == 2 && P > 0 && pay > 0) {
+            double lo = 1, hi = 1200;
+            for (int i = 0; i < 80; i++) { double mid = (lo + hi) / 2; if (loanPayment(P, annual, mid) > pay) lo = mid; else hi = mid; }
+            v = (lo + hi) / 2;
+        }
+        if (v > 0 && Double.isFinite(v)) {
+            loanFields[loanField] = loanField == 2
+                    ? String.valueOf(Math.max(1, Math.round(v)))
+                    : jsNum(Math.round(v * 100) / 100.0);
+            loanResult = true;
+        } else notice = "Check the three values"; // sim notice verbatim
+    }
+
     // Sim usedetail regexes: phone / e-mail / web present in the note body.
     private static boolean[] noteDetailHits(String body) {
         return new boolean[]{
@@ -4354,7 +4573,52 @@ public class NokiaUi extends View {
                 }
                 break;
             case "Instructions":
-                notice = "Enter numbers with keypad. Move through functions with navigation key and press Select."; // sim notice verbatim
+                // Sim: from loancalc it reopens the intro; elsewhere a notice.
+                if (from == Screen.LOANCALC) screen = Screen.LOANINTRO;
+                else notice = "Enter numbers with keypad. Move through functions with navigation key and press Select."; // sim notice verbatim
+                break;
+            case "Scientific calculator":
+                if (from == Screen.CALC || from == Screen.SCIENTIFIC || from == Screen.LOANCALC) {
+                    screen = Screen.SCIENTIFIC;
+                    sciSel = 0;
+                }
+                break;
+            case "Standard calculator":
+                if (from == Screen.CALC || from == Screen.SCIENTIFIC || from == Screen.LOANCALC) {
+                    screen = Screen.CALC;
+                    sciSel = 0;
+                }
+                break;
+            case "Loan calculator":
+                if (from == Screen.CALC || from == Screen.SCIENTIFIC || from == Screen.LOANCALC) {
+                    loanFrom = from;
+                    for (int i = 0; i < 4; i++) loanFields[i] = "";
+                    loanField = 0;
+                    loanResult = false;
+                    screen = Screen.LOANINTRO;
+                }
+                break;
+            case "Calculate":
+                if (from == Screen.LOANCALC) calculateLoan();
+                break;
+            case "Editing options":
+                // Sim loancalc only: opens the 'loanediting' pseudo-page options.
+                if (from == Screen.LOANCALC) {
+                    loanEditing = true;
+                    optionsFrom = Screen.LOANCALC;
+                    optionsItems = optionsItemsFor(Screen.LOANCALC);
+                    optionsSel = 0;
+                    screen = Screen.OPTIONS;
+                }
+                break;
+            case "Paste":
+                // Sim loanediting quirk: Paste just keeps the panel open.
+                if (from == Screen.LOANCALC && loanEditing) {
+                    optionsFrom = Screen.LOANCALC;
+                    optionsItems = optionsItemsFor(Screen.LOANCALC);
+                    optionsSel = 0;
+                    screen = Screen.OPTIONS;
+                }
                 break;
             case "Exit":
                 screen = Screen.IDLE;
@@ -4605,7 +4869,9 @@ public class NokiaUi extends View {
                 p.setColor(Color.parseColor("#386078"));
                 c.drawRect(0, ry, w, ry + rowH, p);
             }
-            p.setColor(Color.WHITE);
+            // Sim: the loanediting panel renders its rows disabled.
+            boolean dis = loanEditing && optionsFrom == Screen.LOANCALC;
+            p.setColor(dis ? Color.parseColor("#555555") : Color.WHITE);
             p.setFakeBoldText(sel);
             p.setTextSize(w * 0.056f);
             p.setTextAlign(Paint.Align.LEFT);
@@ -4673,6 +4939,11 @@ public class NokiaUi extends View {
             case PROFILES: return new String[]{"Activate", "Personalise", "Timed"};
             case ALARM: case ALARM_EDIT: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
             case CALC: return new String[]{"Scientific calculator", "Loan calculator", "Instructions", "Exit"}; // sim opts.calculator
+            case SCIENTIFIC: return new String[]{"Standard calculator", "Loan calculator", "Instructions", "Exit"}; // sim opts.scientific
+            case LOANCALC:
+                // Sim: 'loanediting' shows a single disabled Paste row.
+                if (loanEditing) return new String[]{"Paste"};
+                return new String[]{"Calculate", "Standard calculator", "Scientific calculator", "Instructions", "Exit", "Editing options"}; // sim opts.loancalc
             case CAMERA: return new String[]{"Capture", "Self-timer", "Effects", "Settings"}; // sim opts.camera
             case VIDEOREC: return new String[]{"Record", "Video settings", "Memory in use"}; // sim opts.videorecorder
             case RADIO: return new String[]{"Switch off", "Save station", "Stations", "Search stations", "Set frequency", "Settings"}; // sim opts.radio
@@ -4764,6 +5035,14 @@ public class NokiaUi extends View {
             case TIMERNOTE: return new String[]{"", "Start", timerTap.preview().length() > 0 ? "Clear" : "Back"};
             case INTERVALTIMER: return new String[]{"Options", intervalRunning ? "Stop" : "Change", "Back"};
             case CDSETTINGS: return new String[]{"", "Change", "Back"};
+            case SCIENTIFIC: return new String[]{"Options", "Select", "Exit"}; // sim scientific soft
+            case LOANINTRO: return new String[]{"", "OK", "Back"};
+            case LOANCALC: { // Sim: Calculate only when 3 fields filled + current empty
+                int filled = 0;
+                for (String f : loanFields) if (!f.isEmpty()) filled++;
+                boolean ready = filled == 3 && loanFields[loanField].isEmpty();
+                return new String[]{"Options", ready ? "Calculate" : "", loanResult ? "Clear" : "Exit"};
+            }
             case USEDETAILNUM: return new String[]{"", "Save", "Back"};
             case LOADINGNOTE: return new String[]{"", "", ""};
             case VOICEREC: return new String[]{"Options", voiceRecording ? "Stop" : "Record", "Back"};
