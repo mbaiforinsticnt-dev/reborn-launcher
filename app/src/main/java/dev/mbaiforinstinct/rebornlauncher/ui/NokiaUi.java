@@ -3480,7 +3480,7 @@ public class NokiaUi extends View {
     }
 
     // Sim v4.89 loanintro page: title + guide text, soft /OK/Back.
-    private void drawLoanIntro(Canvas c, int w, h) {
+    private void drawLoanIntro(Canvas c, int w, int h) {
         drawTitle(c, w, h, "Loan calculator");
         float ux = w / 240f;
         p.setStyle(Paint.Style.FILL);
