@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC
     }
 
     public interface Actions {
@@ -287,6 +287,11 @@ public class NokiaUi extends View {
     private Screen itemDetailFrom = Screen.IDLE;
     // Sim v4.89 videorecorder page state: recording flag + start time.
     private boolean videoRecording = false;
+    // Sim v4.89 radio/voicerecorder state (module-level vars in the sim;
+    // radioFrequency is persisted there but never changes in the demo).
+    private boolean radioPlaying = false;
+    private boolean voiceRecording = false;
+    private long voiceRecStartedAt = 0;
     private long videoStartedAt = 0L;
     private boolean videoFromMedia = false;
     // Sim v4.89 browser pages: prototype browser state persists across visits.
@@ -353,6 +358,8 @@ public class NokiaUi extends View {
             case CAMERA: drawCamera(c, w, h); break;
             case ITEMDETAIL: drawItemDetail(c, w, h); break;
             case VIDEOREC: drawVideoRec(c, w, h); break;
+            case RADIO: drawRadio(c, w, h); break;
+            case VOICEREC: drawVoiceRec(c, w, h); break;
             case BROWSER: drawBrowser(c, w, h); break;
             case URLENTRY: drawUrlEntry(c, w, h); break;
             case APPDOWNLOADS: drawAppDownloads(c, w, h); break;
@@ -706,6 +713,8 @@ public class NokiaUi extends View {
                 if (videoFromMedia) { screen = Screen.LIST; listSection = 29; row = 1; }
                 else { screen = Screen.GOTO; row = 4; }
                 break;
+            case RADIO: screen = Screen.LIST; listSection = 29; row = 3; break;
+            case VOICEREC: screen = Screen.LIST; listSection = 29; row = 4; break;
             case BROWSER: screen = Screen.GOTO; row = 6; break;
             case URLENTRY: screen = Screen.BROWSER; break;
             case APPDOWNLOADS:
@@ -886,6 +895,17 @@ public class NokiaUi extends View {
                 // the 'Recording saved' notice.
                 videoRecording = !videoRecording;
                 if (videoRecording) videoStartedAt = System.currentTimeMillis();
+                else notice = "Recording saved";
+                break;
+            case RADIO:
+                // Sim OK on radio: toggle Playing/Stopped.
+                radioPlaying = !radioPlaying;
+                break;
+            case VOICEREC:
+                // Sim OK on voicerecorder: toggle recording; stopping shows
+                // the 'Recording saved' notice.
+                voiceRecording = !voiceRecording;
+                if (voiceRecording) voiceRecStartedAt = System.currentTimeMillis();
                 else notice = "Recording saved";
                 break;
             case BROWSER:
@@ -1229,6 +1249,14 @@ public class NokiaUi extends View {
         if (listSection == 29 && row == 2) { // sim media row 2 opens the media player
             playerFrom = 1;
             screen = Screen.PLAYER;
+            return;
+        }
+        if (listSection == 29 && row == 3) { // sim media row 3 opens the radio
+            screen = Screen.RADIO;
+            return;
+        }
+        if (listSection == 29 && row == 4) { // sim media row 4 opens the voice recorder
+            screen = Screen.VOICEREC;
             return;
         }
         if (listSection == 29 && row == 5) { // sim media row 5 opens the equaliser
@@ -2158,6 +2186,48 @@ public class NokiaUi extends View {
         drawTitle(c, w, h, "Equaliser");
         String eq = player()[6];
         drawItemRows(c, w, h, EQ_ROWS.length, i -> EQ_ROWS[i] + (EQ_ROWS[i].equals(eq) ? "  \u2713" : ""), null, i -> genericIcon());
+    }
+
+    // Sim v4.89 radio page: title + .browserPage panel (padding 10px,
+    // padding-top 35px, centred): bold 32px frequency, blank line,
+    // Playing/Stopped, 'Demo FM station'.
+    private void drawRadio(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Radio");
+        float ux = w / 240f;
+        float y = statusH(h) + titleH(h) + 35 * ux;
+        float line = 13 * ux * 1.7f;
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setColor(Color.WHITE);
+        p.setTextSize(32 * ux);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        y += 32 * ux;
+        c.drawText("98.8 MHz", w / 2f, y, p);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+        p.setTextSize(13 * ux);
+        y += 2 * line + 10 * ux;
+        c.drawText(radioPlaying ? "Playing" : "Stopped", w / 2f, y, p);
+        y += line;
+        c.drawText("Demo FM station", w / 2f, y, p);
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
+    // Sim v4.89 voicerecorder page: title + .browserPage panel (padding-top
+    // 45px, centred): bold Ready/Recording, then the clock - '00:00:00' idle
+    // (sim literal, three parts) but fmtTime mm:ss while recording (sim quirk).
+    private void drawVoiceRec(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Voice recorder");
+        float ux = w / 240f;
+        float y = statusH(h) + titleH(h) + 45 * ux;
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setColor(Color.WHITE);
+        p.setTextSize(13 * ux);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        y += 13 * ux;
+        c.drawText(voiceRecording ? "Recording" : "Ready", w / 2f, y, p);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+        y += 13 * ux * 1.7f;
+        c.drawText(voiceRecording ? fmtTime((System.currentTimeMillis() - voiceRecStartedAt) / 1000) : "00:00:00", w / 2f, y, p);
+        p.setTextAlign(Paint.Align.LEFT);
     }
 
     // Sim v4.89 fmtTime: mm:ss, both parts zero-padded.
@@ -3101,13 +3171,17 @@ public class NokiaUi extends View {
                 break;
             case "Record": case "Video settings": case "Memory in use":
                 // Sim: these option items fall through to the generic notice.
-                if (from == Screen.VIDEOREC) notice = item + " selected";
+                if (from == Screen.VIDEOREC || from == Screen.VOICEREC) notice = item + " selected";
+                break;
+            case "Switch off": case "Save station": case "Stations": case "Search stations": case "Set frequency": case "Recordings list":
+                // Sim: these option items fall through to the generic notice.
+                if (from == Screen.RADIO || from == Screen.VOICEREC) notice = item + " selected";
                 break;
             case "Settings":
                 // Sim nav map: 'Settings' opens the itemdetail page with the
                 // page title + ' settings' / 'Settings available'.
-                if (from == Screen.CAMERA || from == Screen.BROWSER || from == Screen.PLAYER) {
-                    itemDetailTitle = (from == Screen.CAMERA ? "Camera" : from == Screen.PLAYER ? "Media player" : "Nokia Browser") + " settings";
+                if (from == Screen.CAMERA || from == Screen.BROWSER || from == Screen.PLAYER || from == Screen.RADIO) {
+                    itemDetailTitle = (from == Screen.CAMERA ? "Camera" : from == Screen.PLAYER ? "Media player" : from == Screen.RADIO ? "Radio" : "Nokia Browser") + " settings";
                     itemDetailText = "Settings available";
                     itemDetailFrom = from;
                     screen = Screen.ITEMDETAIL;
@@ -3341,6 +3415,8 @@ public class NokiaUi extends View {
             case CALC: return new String[]{"Scientific calculator", "Loan calculator", "Instructions", "Exit"}; // sim opts.calculator
             case CAMERA: return new String[]{"Capture", "Self-timer", "Effects", "Settings"}; // sim opts.camera
             case VIDEOREC: return new String[]{"Record", "Video settings", "Memory in use"}; // sim opts.videorecorder
+            case RADIO: return new String[]{"Switch off", "Save station", "Stations", "Search stations", "Set frequency", "Settings"}; // sim opts.radio
+            case VOICEREC: return new String[]{"Record", "Recordings list", "Memory in use"}; // sim opts.voicerecorder
             case BROWSER: return new String[]{"Open", "Home", "Bookmarks", "Go to address", "Last web addr.", "Downloads", "Settings"}; // sim opts.browser
             case URLENTRY: case APPDOWNLOADS: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
             case PLAYER: return new String[]{"Music library", "Now playing", "Shuffle", "Repeat", "Equaliser", "Settings"}; // sim opts.player
@@ -3389,6 +3465,8 @@ public class NokiaUi extends View {
             case CALC: return new String[]{"Options", "", calcActive ? "Clear" : "Exit"};
             case CAMERA: return new String[]{"Options", "Capture", "Back"};
             case VIDEOREC: return new String[]{"Options", videoRecording ? "Stop" : "Record", "Back"};
+            case RADIO: return new String[]{"Options", radioPlaying ? "Stop" : "Play", "Back"};
+            case VOICEREC: return new String[]{"Options", voiceRecording ? "Stop" : "Record", "Back"};
             case BROWSER: return new String[]{"Options", "Open", "Back"}; // sim soft('Options','Open','Back')
             case URLENTRY: return new String[]{"Options", "Go", urlEntry.length() > 0 ? "Clear" : "Back"}; // sim label; RSK still backs out, as in the sim
             case APPDOWNLOADS: return new String[]{"", "Open", "Back"};
