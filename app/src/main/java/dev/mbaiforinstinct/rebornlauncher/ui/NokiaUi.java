@@ -150,9 +150,10 @@ public class NokiaUi extends View {
             {"New e-mail notif.", "Allow mail reception", "Reply with orig. msg.", "Image size in e-mail", "Edit mailboxes"},
             {"Service messages", "Message filter", "Autom. connection"},
             {"Camera", "Video camera", "Media player", "Radio", "Voice recorder", "Equaliser"},
-            {"Games", "Collection", "Memory card", "Downloads"}
+            {"Games", "Collection", "Memory card", "Downloads"},
+            {"Favourites", "Recently used", "Log", "Contacts", "Contact groups", "New number", "Enter manually"}
     };
-    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps."};
+    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps.", "Add recipient"};
 
     private int selected = 0;
     private int row = 0;
@@ -527,7 +528,8 @@ public class NokiaUi extends View {
             case MENU: screen = Screen.IDLE; row = 0; break;
             case GOTO: screen = Screen.IDLE; row = 0; break;
             case LIST:
-                if (!listBack.isEmpty()) { listSection = listBack.pop(); row = 0; }
+                if (listSection == 32) { listSection = 0; screen = Screen.COMPOSE_NUMBER; row = 0; }
+                else if (!listBack.isEmpty()) { listSection = listBack.pop(); row = 0; }
                 else { screen = listReturn; row = 0; }
                 break;
             case THREADS: screen = Screen.LIST; row = 0; break;
@@ -576,7 +578,14 @@ public class NokiaUi extends View {
             return;
         }
         if (screen == Screen.ADD_CONTACT) { contactField = 1 - contactField; return; }
-        if (screen == Screen.COMPOSE_NUMBER) { composeFocus = 1 - resolvedFocus(); return; }
+        if (screen == Screen.COMPOSE_NUMBER) {
+            if (resolvedFocus() == 0) {
+                if (delta > 0) { // DOWN: into the text, or the picker when no recipient yet (sim)
+                    if (composeNumber.length() > 0) composeFocus = 1; else openRecipientPicker();
+                }
+            } else if (delta < 0) composeFocus = 0; // UP: back to the To: field
+            return;
+        }
         int count = listCount();
         if (count == 0) return;
         row = (row + delta + count) % count;
@@ -706,7 +715,7 @@ public class NokiaUi extends View {
                 break;
             case COMPOSE_NUMBER:
                 if (resolvedFocus() == 0) {
-                    if (composeNumber.length() > 0) composeFocus = 1; // Add: on to the text
+                    openRecipientPicker(); // sim: centre key on To: opens the recipient picker
                 } else {
                     sendCompose();
                 }
@@ -804,7 +813,21 @@ public class NokiaUi extends View {
 
     private static final int[] MSG_FOLDER_SECTIONS = {11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 23, 24};
 
+    // Sim v4.89: centre key on the To: field, DOWN on an empty To:, and
+    // "Add recipient >" all open the recipient picker page.
+    private void openRecipientPicker() {
+        listBack.clear();
+        listSection = 32;
+        row = 0;
+        screen = Screen.LIST;
+    }
+
     private void selectListItem() {
+        if (listSection == 32) { // Sim recipient picker: only Contacts navigates
+            if (row == 3) { rows = actions.contacts(); row = 0; screen = Screen.CONTACTS; }
+            else notice = LIST_ITEMS[32][row] + " opened";
+            return;
+        }
         if (listSection == 0) {
             if (row == 0) { // Create message
                 composeNumber.setLength(0);
@@ -1487,11 +1510,13 @@ public class NokiaUi extends View {
         p.setColor(Color.WHITE);
         c.drawText("Text:", x, y + labelSize, p);
         y += labelSize + w * (4f / 240f);
-        float textH = w * (92f / 240f); // .smsEditor .textField height
+        float stripH = w * (30f / 240f); // sim .attachStrip height
+        // Tall screens: keep the strip visible above the softkey bar (sim
+        // always shows it) by clamping the Text field to the space left.
+        float textH = Math.min(w * (92f / 240f), softTop(h) - y - stripH); // .smsEditor .textField height
         drawComposeField(c, w, x, y, fw, textH, composeTap.preview(), focus == 1);
         y += textH;
         // Attach strip: 30px, centred glyphs.
-        float stripH = w * (30f / 240f);
         p.setTextSize(w * (20f / 240f));
         p.setColor(Color.parseColor("#DDDDDD"));
         p.setTextAlign(Paint.Align.CENTER);
@@ -1870,7 +1895,7 @@ public class NokiaUi extends View {
                 if (from == Screen.COMPOSE_NUMBER) clearComposeField();
                 break;
             case "Add recipient >":
-                if (from == Screen.COMPOSE_NUMBER) composeFocus = 0;
+                if (from == Screen.COMPOSE_NUMBER) openRecipientPicker();
                 break;
             case "Exit editor":
                 if (from == Screen.COMPOSE_NUMBER) { screen = Screen.LIST; row = 0; }
@@ -2061,4 +2086,4 @@ public class NokiaUi extends View {
             default: return new String[]{"", "", "Back"};
         }
     }
-            }
+        }
