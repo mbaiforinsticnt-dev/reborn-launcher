@@ -321,6 +321,33 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     }
 
     @Override
+    public String[] getPlayer() {
+        android.content.SharedPreferences sp = getSharedPreferences("c2reborn", MODE_PRIVATE);
+        return new String[]{
+                sp.getString("player_track", "0"),
+                sp.getBoolean("player_playing", false) ? "1" : "0",
+                sp.getString("player_elapsed", "0"),
+                String.valueOf(sp.getInt("player_volume", 6)),
+                sp.getBoolean("player_shuffle", false) ? "1" : "0",
+                sp.getBoolean("player_repeat", false) ? "1" : "0",
+                sp.getString("equaliser", "Normal"),
+        };
+    }
+
+    @Override
+    public void setPlayer(String[] a) {
+        getSharedPreferences("c2reborn", MODE_PRIVATE).edit()
+                .putString("player_track", a[0])
+                .putBoolean("player_playing", "1".equals(a[1]))
+                .putString("player_elapsed", a[2])
+                .putInt("player_volume", Integer.parseInt(a[3]))
+                .putBoolean("player_shuffle", "1".equals(a[4]))
+                .putBoolean("player_repeat", "1".equals(a[5]))
+                .putString("equaliser", a[6])
+                .apply();
+    }
+
+    @Override
     public void setAlarm(String[] a) {
         getSharedPreferences("c2reborn", MODE_PRIVATE).edit()
                 .putBoolean("alarm_on", "1".equals(a[0]))
