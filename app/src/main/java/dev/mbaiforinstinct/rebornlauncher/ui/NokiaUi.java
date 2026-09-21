@@ -3245,11 +3245,6 @@ public class NokiaUi extends View {
         }
     }
 
-    private static String fmtTime(long sec) { // sim fmtTime: MM:SS
-        sec = Math.max(0, sec);
-        return String.format(java.util.Locale.US, "%02d:%02d", sec / 60, sec % 60);
-    }
-
     // Sim v4.89 normaltimer page: 'Set timer' + the .dialNumber entry box
     // (gradient panel, #777 border, right-aligned fields, #456 field focus).
     private void drawNormalTimer(Canvas c, int w, int h) {
