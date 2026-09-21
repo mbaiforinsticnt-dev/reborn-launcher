@@ -307,6 +307,30 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
         getSharedPreferences("c2reborn", MODE_PRIVATE).edit().putInt("profile", index).apply();
     }
 
+    // Sim v4.89 default alarm: off, 07:00, no repeat, Nokia tune, 10 min snooze.
+    @Override
+    public String[] getAlarm() {
+        android.content.SharedPreferences sp = getSharedPreferences("c2reborn", MODE_PRIVATE);
+        return new String[]{
+                sp.getBoolean("alarm_on", false) ? "1" : "0",
+                sp.getString("alarm_time", "07:00"),
+                sp.getBoolean("alarm_repeat", false) ? "1" : "0",
+                sp.getString("alarm_tone", "Nokia tune"),
+                sp.getString("alarm_snooze", "10"),
+        };
+    }
+
+    @Override
+    public void setAlarm(String[] a) {
+        getSharedPreferences("c2reborn", MODE_PRIVATE).edit()
+                .putBoolean("alarm_on", "1".equals(a[0]))
+                .putString("alarm_time", a[1])
+                .putBoolean("alarm_repeat", "1".equals(a[2]))
+                .putString("alarm_tone", a[3])
+                .putString("alarm_snooze", a[4])
+                .apply();
+    }
+
     @Override
     public boolean addContact(String name, String number) {
         return PhoneStore.insertContact(this, name, number); // contactsObserver refreshes the cache
