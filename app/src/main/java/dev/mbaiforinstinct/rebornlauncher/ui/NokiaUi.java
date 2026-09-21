@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL
     }
 
     public interface Actions {
@@ -35,6 +35,9 @@ public class NokiaUi extends View {
         boolean sendSms(String number, String text);
         List<String[]> drafts();
         void saveDraft(String number, String text);
+        void clearDrafts();
+        int getProfile();
+        void setProfile(int index);
         boolean addContact(String name, String number);
         boolean updateContact(String oldName, String oldNumber, String newName, String newNumber);
         boolean deleteContact(String name, String number);
@@ -55,6 +58,10 @@ public class NokiaUi extends View {
             "Apps.", "Log", "Settings", "STORE"
     };
     // Sim v4.89 idle "Go to" page rows.
+    // Sim v4.89 profiles page: rows, with "  checkmark" on the active one.
+    private static final String[] PROFILE_ROWS = {"General", "Silent", "Meeting", "Outdoor", "My style 1", "My style 2", "Flight"};
+    private int activeProfile = -1; // lazy-loaded from the store
+
     private static final String[] GOTO_ROWS = {
             "Lock keypad", "Profiles", "Alarm clock", "Camera", "Video recorder",
             "Calculator", "Nokia Browser", "Media player", "Conversations"};
@@ -154,9 +161,10 @@ public class NokiaUi extends View {
             {"Favourites", "Recently used", "Log", "Contacts", "Contact groups", "New number", "Enter manually"},
             {"Message", "Flash message", "Audio message", "Templates"},
             {},
-            {}
+            {},
+            {"Saved messages", "Templates"}
     };
-    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps.", "Add recipient", "Create message", "Flash message", "Audio message"};
+    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps.", "Add recipient", "Create message", "Flash message", "Audio message", "My folders"};
 
     private int selected = 0;
     private int row = 0;
@@ -222,6 +230,8 @@ public class NokiaUi extends View {
             case MENU: drawMenu(c, w, h); break;
             case GOTO: drawGoto(c, w, h); break;
             case LIST: drawList(c, w, h); break;
+            case PROFILES: drawProfiles(c, w, h); break;
+            case CONFIRM_DEL: drawConfirmDelete(c, w, h); break;
             case THREADS: drawThreads(c, w, h); break;
             case CONVERSATION: drawConversation(c, w, h); break;
             case READ: drawRead(c, w, h); break;
@@ -530,6 +540,8 @@ public class NokiaUi extends View {
             case OPTIONS: screen = optionsFrom; break;
             case MENU: screen = Screen.IDLE; row = 0; break;
             case GOTO: screen = Screen.IDLE; row = 0; break;
+            case PROFILES: screen = Screen.GOTO; row = 1; break;
+            case CONFIRM_DEL: screen = Screen.LIST; listSection = 23; row = 2; break;
             case LIST:
                 if (listSection == 32) { listSection = 0; screen = Screen.COMPOSE_NUMBER; row = 0; }
                 else if (!listBack.isEmpty()) { listSection = listBack.pop(); row = 0; }
@@ -603,6 +615,7 @@ public class NokiaUi extends View {
     private int listCount() {
         switch (screen) {
             case GOTO: return GOTO_ROWS.length;
+            case PROFILES: return PROFILE_ROWS.length;
             case LIST: return listSection == 11 ? drafts.size() : LIST_ITEMS[listSection].length;
             case THREADS: return convos.size();
             case CONVERSATION: return Math.max(convoMsgs.size(), 1);
@@ -629,6 +642,12 @@ public class NokiaUi extends View {
                 break;
             case GOTO:
                 gotoSelect(row);
+                break;
+            case PROFILES:
+                activateProfile();
+                break;
+            case CONFIRM_DEL:
+                deleteAllMessages();
                 break;
             case LIST:
                 selectListItem();
@@ -867,6 +886,20 @@ public class NokiaUi extends View {
         }
         if (listSection == 14) { // Saved items -> Templates / Saved messages
             openListSection(row == 0 ? 15 : 16);
+            return;
+        }
+        if (listSection == 23) { // Sim deletemessages routes
+            if (row == 0) { // By message -> the message list
+                threads = actions.sms();
+                rebuildConvos();
+                screen = Screen.THREADS;
+                row = 0;
+            } else if (row == 1) openListSection(36); // By folder -> My folders
+            else screen = Screen.CONFIRM_DEL; // All messages -> sim confirm page
+            return;
+        }
+        if (listSection == 36) { // My folders -> Saved messages / Templates
+            openListSection(row == 0 ? 16 : 15);
             return;
         }
         if (listSection == 24) { // Message settings -> the five settings pages
@@ -1251,6 +1284,60 @@ public class NokiaUi extends View {
         drawItemRows(c, w, h, GOTO_ROWS.length, i -> GOTO_ROWS[i], null);
     }
 
+    // Sim v4.89 profiles page: title + rows, active profile carries "  ✓".
+    private void drawProfiles(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Profiles");
+        drawItemRows(c, w, h, PROFILE_ROWS.length,
+                i -> PROFILE_ROWS[i] + (i == profile() ? "  \u2713" : ""), null);
+    }
+
+    // Sim v4.89 confirmdelete page: title + .mailboxDialog centred box
+    // (inset 18% top / 8% sides / 25% bottom, #111923, 2px #ddd border).
+    private void drawConfirmDelete(Canvas c, int w, int h) {
+        drawTitle(c, w, h, "Delete messages");
+        float top = statusH(h), bot = softTop(h);
+        float boxTop = top + (bot - top) * 0.18f;
+        float boxBot = bot - (bot - top) * 0.25f;
+        float boxL = w * 0.08f, boxR = w * 0.92f;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#111923"));
+        c.drawRect(boxL, boxTop, boxR, boxBot, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(2f, w * 0.005f));
+        p.setColor(Color.parseColor("#DDDDDD"));
+        c.drawRect(boxL, boxTop, boxR, boxBot, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.WHITE);
+        p.setTextSize(w * 0.055f);
+        p.setTextAlign(Paint.Align.LEFT);
+        c.drawText("Delete all messages?", boxL + w * 0.04f, boxTop + (boxBot - boxTop) * 0.32f, p);
+    }
+
+    private int profile() {
+        if (activeProfile < 0) activeProfile = actions.getProfile();
+        return activeProfile;
+    }
+
+    // Sim OK/Activate on the profiles page.
+    private void activateProfile() {
+        activeProfile = row;
+        actions.setProfile(row);
+        notice = PROFILE_ROWS[row] + " activated";
+    }
+
+    // Sim OK on confirmdelete: clear the app's message state, notice, then
+    // Messaging with Delete messages highlighted (sim sel=12). Real SMS stay
+    // in the system store - only the default SMS app may delete those.
+    private void deleteAllMessages() {
+        actions.clearDrafts();
+        drafts.clear();
+        listBack.clear();
+        listSection = 0;
+        row = 12;
+        screen = Screen.LIST;
+        notice = "Messages deleted";
+    }
+
     private void gotoSelect(int r) {
         switch (r) {
             case 0: // Lock keypad
@@ -1271,7 +1358,11 @@ public class NokiaUi extends View {
                 screen = Screen.THREADS;
                 row = 0;
                 break;
-            default: break; // Profiles: settings subtree not built yet
+            case 1: // Profiles
+                screen = Screen.PROFILES;
+                row = 0;
+                break;
+            default: break;
         }
     }
 
@@ -1900,9 +1991,16 @@ public class NokiaUi extends View {
             case "Open": case "View":
                 if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; screen = Screen.READ; }
                 else if (from == Screen.CONTACTS_HOME || from == Screen.CALLLOG_HOME) selectCurrent();
+                else if (from == Screen.LIST) selectListItem();
                 break;
             case "Select":
                 selectCurrent();
+                break;
+            case "Activate":
+                if (from == Screen.PROFILES) activateProfile();
+                break;
+            case "Timed":
+                if (from == Screen.PROFILES) notice = "Timed profile set for 1 hour";
                 break;
             case "Reply":
                 if (from == Screen.CONVERSATION && convoAddress != null) {
@@ -2077,6 +2175,7 @@ public class NokiaUi extends View {
             case DIALER: return new String[]{"Call", "Save", "Send message", "Add to contact"};
             case MENU: return new String[]{"Main menu view", "Organise", "Help"};
             case GOTO: return new String[]{"Select", "Organise", "Help"};
+            case PROFILES: return new String[]{"Activate", "Personalise", "Timed"};
             case CONTACT_CARD: return new String[]{"Add detail >", "Call", "Edit", "Delete", "Send message >", "View conversations", "Add image >", "Use number", "Set as default", "Change type >", "Copy number", "Send business card >", "Add to group", "Speed dial"};
             case CONTACTS_HOME: return new String[]{"Open", "Search", "Add new", "Memory status"};
             case CALLLOG_HOME: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
@@ -2090,6 +2189,7 @@ public class NokiaUi extends View {
                     case 19: return new String[]{"Sign in", "Saved conversations", "Settings"};
                     case 34: case 35: return new String[]{"Open", "Details", "Help"}; // sim generic fallback
                     case 20: return new String[]{"Call voice mailbox", "Voice mailbox no.", "Info"};
+                    case 36: return new String[]{"Open", "Details", "Help"}; // sim currentOptions fallback
                     default: return new String[0];
                 }
             default: return new String[0];
@@ -2113,10 +2213,12 @@ public class NokiaUi extends View {
             case OPTIONS: return new String[]{"", "Select", "Back"};
             case MENU: return new String[]{"Options", "Select", "Exit"};
             case GOTO: return new String[]{"Options", "Select", "Back"};
+            case PROFILES: return new String[]{"Options", "Activate", "Back"};
+            case CONFIRM_DEL: return new String[]{"Yes", "", "No"};
             case LIST: {
                 String centre = "Select";
                 if (listSection == 11) centre = "Edit"; // Drafts
-                else if (listSection >= 12 && listSection <= 16) centre = "Open"; // Outbox/Sent/Saved/Templates/Saved messages
+                else if ((listSection >= 12 && listSection <= 16) || listSection == 36) centre = "Open"; // Outbox/Sent/Saved/Templates/Saved messages/My folders
                 else if (listSection == 34 || listSection == 35) centre = ""; // sim soft('Options','','Back')
                 return new String[]{optionsItemsFor(Screen.LIST).length > 0 ? "Options" : "", centre, "Back"};
             }
@@ -2139,4 +2241,4 @@ public class NokiaUi extends View {
             default: return new String[]{"", "", "Back"};
         }
     }
-        }
+            }
