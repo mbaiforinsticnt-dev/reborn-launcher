@@ -58,65 +58,6 @@ public class NokiaUi extends View {
     private final String[] mmsSettings = {"No", "No", "Guided", "1600x1200", "00:08", "Auto. in home nw.", "No", "Default / S40 MMS"};
     private String[] mmsBase; private boolean mmsDirty;
     private final String[] emailSettings = {"On", "In home network", "Yes", "1600x1200", "No mailboxes"};
-
-import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Typeface;
-import android.os.Handler;
-import android.view.KeyEvent;
-import android.view.View;
-
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-
-import dev.mbaiforinstinct.rebornlauncher.data.PhoneStore;
-import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
-
-public class NokiaUi extends View {
-
-    public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, CALMONTH, CALOPEN, INSERTWORD, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS, USEDETAILNUM, LOADINGNOTE, SCIENTIFIC, LOANINTRO, LOANCALC
-    }
-
-    public interface Actions {
-        void dial(String number);
-        void openRoute(String section, String item);
-        List<PhoneStore.Sms> sms();
-        List<String[]> callLog();
-        List<String[]> contacts();
-        boolean sendSms(String number, String text);
-        List<String[]> drafts();
-        void saveDraft(String number, String text);
-        void clearDrafts();
-        int getProfile();
-        void setProfile(int index);
-        String[] getAlarm();
-        void setAlarm(String[] state);
-        String[] getPlayer();
-        void setPlayer(String[] state);
-        boolean addContact(String name, String number);
-        boolean updateContact(String oldName, String oldNumber, String newName, String newNumber);
-        boolean deleteContact(String name, String number);
-        int missedCalls();
-        int unreadSms();
-        int batteryPercent();
-    }
-
-    // Sim v4.89 settings pages: live values, base snapshot on entry, dirty tracking.
-    private final String[] generalSettings = {"Yes", "Not allowed", "(not defined)", "Normal font", "Yes"};
-    private String[] generalBase; private boolean generalDirty;
-    private final String[] textSettings = {"No", "", "SIM msg centre 1", "Maximum time", "Text", "No", "Full", "No"};
-    private String[] textBase; private boolean textDirty;
-    private final String[] mmsSettings = {"No", "No", "Guided", "1600x1200", "00:08", "Auto. in home nw.", "No", "Default / S40 MMS"};
-    private String[] mmsBase; private boolean mmsDirty;
-    private final String[] emailSettings = {"On", "In home network", "Yes", "1600x1200", "No mailboxes"};
     private String[] emailBase; private boolean emailDirty;
     private final String[] serviceSettings = {"On", "On", "On"};
 
