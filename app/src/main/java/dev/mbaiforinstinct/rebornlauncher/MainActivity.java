@@ -18,6 +18,11 @@ import android.os.Looper;
 import android.provider.CallLog;
 import android.provider.ContactsContract;
 import android.provider.Settings;
+import android.media.AudioManager;
+import android.os.Build;
+import android.telecom.TelecomManager;
+import android.telephony.PhoneStateListener;
+import android.telephony.TelephonyManager;
 import android.widget.LinearLayout;
 
 import java.util.ArrayList;
@@ -37,7 +42,9 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
             Manifest.permission.WRITE_CONTACTS,
             Manifest.permission.READ_CALL_LOG,
             Manifest.permission.READ_SMS,
-            Manifest.permission.SEND_SMS
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.ANSWER_PHONE_CALLS
     };
 
     private NokiaUi ui;
@@ -58,6 +65,17 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     private List<String[]> cacheContacts = new ArrayList<>();
     private volatile int cacheUnread = 0;
     private volatile int cacheMissed = 0;
+    // Real-call tracking: telephony state drives the C2 incall screen.
+    // Registered once READ_PHONE_STATE is granted; additive only.
+    private TelephonyManager telephonyManager;
+    private PhoneStateListener legacyCallListener;
+    private Object modernCallCallback;
+    private boolean callStateRegistered = false;
+    private boolean callUiActive = false;
+    private String lastDialNumber;
+    private long lastDialAtMs;
+    private String lastRingingNumber;
+
     private ContentObserver smsObserver;
     private ContentObserver callLogObserver;
     private ContentObserver contactsObserver;
@@ -143,6 +161,7 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         refreshAll();
+        registerCallStateListener();
     }
 
     @Override
@@ -150,6 +169,15 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
         if (smsObserver != null) getContentResolver().unregisterContentObserver(smsObserver);
         if (callLogObserver != null) getContentResolver().unregisterContentObserver(callLogObserver);
         if (contactsObserver != null) getContentResolver().unregisterContentObserver(contactsObserver);
+        if (callStateRegistered && telephonyManager != null) {
+            try {
+                if (Build.VERSION.SDK_INT >= 31 && modernCallCallback != null) {
+                    telephonyManager.unregisterTelephonyCallback((android.telephony.TelephonyCallback) modernCallCallback);
+                } else if (legacyCallListener != null) {
+                    telephonyManager.listen(legacyCallListener, PhoneStateListener.LISTEN_NONE);
+                }
+            } catch (Exception ignored) { }
+        }
         bg.shutdownNow();
         super.onDestroy();
     }
@@ -170,6 +198,7 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
         registerObservers();
         refreshAll();
         requestNeededPermissions();
+        registerCallStateListener();
     }
 
     private void requestNeededPermissions() {
@@ -192,8 +221,96 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
 
     @Override
     public void dial(String number) {
-        Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + number));
-        startActivity(intent);
+        lastDialNumber = number;
+        lastDialAtMs = System.currentTimeMillis();
+        if (checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+            // Real call; the C2 incall screen tracks it via telephony state.
+            try {
+                startActivity(new Intent(Intent.ACTION_CALL, Uri.parse("tel:" + number)));
+                return;
+            } catch (Exception ignored) { }
+        }
+        // Without the call permission the system dialer confirms the number.
+        startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + number)));
+    }
+
+    @Override
+    public boolean endCall() {
+        if (Build.VERSION.SDK_INT < 28) return false;
+        if (checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED) return false;
+        try {
+            TelecomManager tm = (TelecomManager) getSystemService(TELECOM_SERVICE);
+            return tm != null && tm.endCall();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public void setSpeakerphone(boolean on) {
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (am != null) am.setSpeakerphoneOn(on);
+        } catch (Exception ignored) { }
+    }
+
+    @Override
+    public void setMicMute(boolean mute) {
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (am != null) am.setMicrophoneMute(mute);
+        } catch (Exception ignored) { }
+    }
+
+    private void registerCallStateListener() {
+        if (callStateRegistered) return;
+        if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) return;
+        try {
+            telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
+            if (telephonyManager == null) return;
+            if (Build.VERSION.SDK_INT >= 31) {
+                final android.telephony.TelephonyCallback callback = new android.telephony.TelephonyCallback() {
+                    @Override public void onCallStateChanged(int state) {
+                        handleCallState(state, null);
+                    }
+                };
+                modernCallCallback = callback;
+                telephonyManager.registerTelephonyCallback(getMainExecutor(), callback);
+            } else {
+                legacyCallListener = new PhoneStateListener() {
+                    @Override public void onCallStateChanged(int state, String phoneNumber) {
+                        handleCallState(state, phoneNumber);
+                    }
+                };
+                telephonyManager.listen(legacyCallListener, PhoneStateListener.LISTEN_CALL_STATE);
+            }
+            callStateRegistered = true;
+        } catch (Exception ignored) {
+            // Call-state tracking is additive; never let it block launch.
+        }
+    }
+
+    private void handleCallState(int state, String number) {
+        if (state == TelephonyManager.CALL_STATE_RINGING) {
+            lastRingingNumber = number;
+            return;
+        }
+        if (state == TelephonyManager.CALL_STATE_OFFHOOK) {
+            if (callUiActive) return;
+            callUiActive = true;
+            String shown = (lastDialNumber != null && System.currentTimeMillis() - lastDialAtMs < 120000)
+                    ? lastDialNumber
+                    : (lastRingingNumber != null ? lastRingingNumber : "");
+            final String n = shown;
+            mainHandler.post(() -> { if (ui != null) ui.callStarted(n); });
+            return;
+        }
+        if (state == TelephonyManager.CALL_STATE_IDLE) {
+            lastRingingNumber = null;
+            if (!callUiActive) return;
+            callUiActive = false;
+            mainHandler.post(() -> { if (ui != null) ui.callEnded(); });
+        }
     }
 
     @Override
