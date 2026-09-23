@@ -23,7 +23,7 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, CALMONTH, CALOPEN, INSERTWORD, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS, USEDETAILNUM, LOADINGNOTE, SCIENTIFIC, LOANINTRO, LOANCALC, INCALL
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, CALMONTH, CALOPEN, INSERTWORD, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS, USEDETAILNUM, LOADINGNOTE, SCIENTIFIC, LOANINTRO, LOANCALC, MSGMOVE, MSGUSEDETAIL, INCALL
     }
 
     public interface Actions {
@@ -197,6 +197,8 @@ public class NokiaUi extends View {
     private static final String OPTION_SEL_BAR_B64 = "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";
     private Bitmap optionSelBar;
     private static final String ENV_ROW_ICON_B64 = "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";
+    private static final String CONV_ICON_UNREAD_B64 = "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAC2ElEQVR4nNWU3WtcVRTFf3vfO3cm00nGpBkp4zfYVHywreKLpZIq1A9QRCyI/jHSP8IXQV9EfVKhYq0iRRF88KWlqNBi1TFpmjbTNHEmM/fce87ZPtTpBJNSStsHFxxYcM5ee+192Bv+b5ARMRvz2xIU7E7o3DjBiJi9Orl0dr3arruIhltzHxNbGlS1vafpRI71AFKzd1TkaDx1YvG9/Qebz3MlDbFMVRVuWpRAjKBKbN+vyekTiyeBN81M0tGbb75fnfUutJ7eN4lmCkUEvYnxaGhFIRg/fbvKyR/XZ0dXOiJHDs+UhTN7/+Nlf2khNwxzPW9lP1i58Z/TD+Z63ojYypKzDz666N0w2pEXZsotwpmqHJiflicf2yGff9WVU6d7Uq2oSDCJRRS8Cd7EiigEk2qmcubnvnz6ZVf2ztXl4KEZqSbjEq+3IriI9QL75+rct7PC8R/W6Pw15KUDTbJKQp4HQKhWBPPGF193WbnqeW1+ml2zFawf8Hlgi2MCSGls9Dw7GylvHZ4mS1M+PF6yeMExkSgTiXD5csG7nywTPbz94iytqZSNvkdKg7HuJsdFgDJCADcoUVVefu4pzvzS4dh3f7DnwR0kCmcXcvY9OsFD7RqxiBQAZlBGQhm3OrYyQmFE5yEkWGU3G92LPL6rxxvzLWIwnDNeeeYenn1ikprA750c7yLiDVyEchvH0QN5ifkE6nPE/hLmVhhIxlQGh/ZOgoEPxt9rnmZNMZ/w50LOA/dm1GuGd2GrcBgWmG8gtYfNr3XM3FXQDAg4g5zxmIpAXkAjFWikdBZzm0gVHXdiLJxlTWRqDrnwm2q5LiSVa2O1Hf6dSPPGdFXRZqpXVgrywTaOVwYta5w7x/pqN0iagW32eGMYRqoSVEV/PT+0UdAoMnmklbxey6xtUi0h3uISwiqZVgZDv3z+UvkZm77xjuzizbguKNc21W0lUMHu7pa/m/gH521txAjPgekAAAAASUVORK5CYII=";
+    private static final String CONV_ICON_READ_B64 = "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAC2UlEQVR4nNWUa29URRjHfzPnnN3tZQV7AUXrpaltShWLoVJqsCp+AuMLPhufgWio7wwYCTG2tGaNF5KWxKQ0C90tdbcX9pw5c3l8obttpQgEeOE/mWSSefKf3zzz5A//N6n2plK5rP6r8El1+vSX8jx8HqkO5a1b18prq9ViuacroHg6ekF2HqR66M3XzMmTF3YA4uXleT02Nh0W5yuXTk2OX0h3W148Wukn9AygNOHY8f5ocb7yHXCxWq2quF2wsFAZyK0dnBgfIUoigvM8lltAxxoJgaXFX/hp6deB9lGHa/bjs9YaK1fmrrp67b6IIGmaSZYZMSY/sLLMSJpmIoJs3m/I3DdXnUmNfDJ71rb9OsRxFKkzZ06pQiFR168vqPHxEUbfeRtrLSEElFb/PF1QWlEoFFhZ+YPffl9hbGxYTU5OqLU7VfWQsc0tuckZGX6D/r6jzN/8mXt3a3w49T5xHGHzv2GSJIYg3Lhxk8bWNjPnPqC/7yi5ycnzDvBeKwTw3tNqpZR7evhsdpo4Sbj2/QL1+iZJHJPEMX9uNvl67lu893z+6QxHymVarRTvPSJ7I7xHbC3Be0IIZCZDa835j86xfPs2P/y4xNDrJ9BasVZdZ/itIY6/MohzDodDQiB4j7OHEAfn8S7gnEeCkCTdbDUbvHqsj/MzUwQfsMYxPTXJuxOjxFpTrdaw1iEBvPOIP4TY+4CzFvGBYvdLZK0H5HmGUopSsch7E6Mg4ENgZ3uXrlIJ7wPrd+sMDLxMsVQg30e87/MMIQiFUq/sbm+JswalNCA45w6MrwIy7ykkMb293dxb35AkSQ7vcaFYoqf3CBv1mg7eqrZp2+jfUoCEQHdXCRHRjUYTY/KHjVupk7XVO2w1mz6KowO3P05aa6+V0qurVWlztGGiwf6+L5IkOqGUtiBPFUIiInGcJMaY9drG5ldAp9nPJYv364Dhs4b9Cw/5F6q/AHvVhHywN76gAAAAAElFTkSuQmCC";
     private static final String CALL_ROW_ICON_B64 = "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";
     private static final String[] ORG_ICON_B64 = {
 
@@ -227,6 +229,9 @@ public class NokiaUi extends View {
     private static final String DIAL_STORE_ICON_B64 = "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";
     private static final String DIAL_GALLERY_ICON_B64 = "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";
     private Bitmap[] msgIcons;
+    private Bitmap convUnreadIcon;
+    private Bitmap convReadIcon;
+    private final java.util.Set<String> unreadSenders = new java.util.HashSet<>(); // HTML: unread = ANY unread message in the thread
     private Bitmap genericRowIcon;
     private Bitmap envRowIcon;
     private Bitmap callRowIcon;
@@ -249,6 +254,56 @@ public class NokiaUi extends View {
         try { byte[] b = android.util.Base64.decode(b64, android.util.Base64.DEFAULT); return BitmapFactory.decodeByteArray(b, 0, b.length); } catch (Exception e) { return null; }
     }
     private Bitmap envIcon() { if (envRowIcon == null) envRowIcon = decodeIcon(ENV_ROW_ICON_B64); return envRowIcon; }
+    private Bitmap convIcon(boolean read) { // HTML CONV_ICON_UNREAD/READ envelope bitmaps
+        if (read) { if (convReadIcon == null) convReadIcon = decodeIcon(CONV_ICON_READ_B64); return convReadIcon; }
+        if (convUnreadIcon == null) convUnreadIcon = decodeIcon(CONV_ICON_UNREAD_B64); return convUnreadIcon;
+    }
+    // HTML msgWhen: HH:mm for today, dd-MM-yyyy otherwise.
+    private String msgWhen(long date) {
+        java.util.Calendar now = java.util.Calendar.getInstance(), d = java.util.Calendar.getInstance();
+        d.setTimeInMillis(date);
+        boolean today = now.get(java.util.Calendar.YEAR) == d.get(java.util.Calendar.YEAR)
+                && now.get(java.util.Calendar.DAY_OF_YEAR) == d.get(java.util.Calendar.DAY_OF_YEAR);
+        return today ? timeLabel(date) : dayLabel(date);
+    }
+    // HTML msgIconHtml: 18px envelope; sent adds a 9px green circle with a white check at +13,+10.
+    private void drawMsgIcon(Canvas c, float left, float top, float u, String kind) {
+        c.drawBitmap(convIcon("read".equals(kind)), null,
+                new android.graphics.RectF(left, top, left + 18 * u, top + 18 * u), null);
+        if ("sent".equals(kind)) {
+            float bd = 9 * u, bx = left + 13 * u, by = top + 10 * u;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#2E9E3A"));
+            c.drawCircle(bx + bd / 2, by + bd / 2, bd / 2, p);
+            p.setColor(Color.WHITE);
+            p.setTextSize(8 * u);
+            p.setFakeBoldText(true);
+            p.setTextAlign(Paint.Align.CENTER);
+            c.drawText("\u2713", bx + bd / 2, by + bd - 1.5f * u, p);
+            p.setFakeBoldText(false);
+            p.setTextAlign(Paint.Align.LEFT);
+        }
+    }
+    // Word-wrap with an HTML -webkit-line-clamp style ellipsis when over maxLines.
+    private java.util.List<String> wrapLines(String body, float avail, int maxLines) {
+        java.util.List<String> lines = new ArrayList<>();
+        for (String para : body.split("\n", -1)) {
+            StringBuilder line = new StringBuilder();
+            for (String word : para.split(" ")) {
+                String cand = line.length() == 0 ? word : line + " " + word;
+                if (p.measureText(cand) > avail && line.length() > 0) { lines.add(line.toString()); line = new StringBuilder(word); }
+                else line = new StringBuilder(cand);
+            }
+            lines.add(line.toString());
+        }
+        if (lines.size() > maxLines) {
+            lines = new ArrayList<>(lines.subList(0, maxLines));
+            String last = lines.get(maxLines - 1);
+            while (last.length() > 0 && p.measureText(last + "\u2026") > avail) last = last.substring(0, last.length() - 1);
+            lines.set(maxLines - 1, last + "\u2026");
+        }
+        return lines;
+    }
     private Bitmap callIcon() { if (callRowIcon == null) callRowIcon = decodeIcon(CALL_ROW_ICON_B64); return callRowIcon; }
     private Bitmap headIcon() { if (headRowIcon == null) headRowIcon = decodeIcon(CONTACTS_ICON_B64[0]); return headRowIcon; }
     private Bitmap genericIcon() { if (genericRowIcon == null) genericRowIcon = decodeIcon(GENERIC_ROW_ICON_B64); return genericRowIcon; }
@@ -338,7 +393,7 @@ public class NokiaUi extends View {
             {"Sent text messages", "Sent MMS msgs.", "Sent e-mails", "Received text msgs."}, // 59 sim messagelog counters
             {}, // 60 sim folderdetails (custom form draw)
             {}, // 61 sim inbox (live message window)
-            {"Type: Text message", "From: Alex Morgan", "Status: Read"} // 62 sim messagedetails
+            {} // 62 msgdetails - drawn dynamically by drawList/detailsRows
     };
     private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone", "Calendar", "To-do list", "Notes", "Countdown", "Editing options", "Writing language", "Prediction options", "Use detail", "Send note", "Favourites", "Message centres", "Msg. centre in use", "Configuration sett.", "E-mail mailboxes", "Message centre", "Accounts", "Inbox view", "SIM messages", "Message log", "Folder details", "Inbox", "Message details"};
 
@@ -479,6 +534,7 @@ public class NokiaUi extends View {
     private boolean composeSent = false;
     private boolean composeFromDraft;
     private boolean composeExitConfirm = false;
+    private String composeOrigin = "new"; // HTML composeOrigin: new/reply/send/sendcopy/edit/usedetail
     private String notice = null;
     private String alarmDigits = "";
     private boolean alarmFromList = false;
@@ -640,6 +696,8 @@ public class NokiaUi extends View {
             case THREADS: drawThreads(c, w, h); break;
             case CONVERSATION: drawConversation(c, w, h); break;
             case READ: drawRead(c, w, h); break;
+            case MSGMOVE: drawSimpleRows(c, w, h, "Move to folder", new String[]{"Saved messages"}); break; // HTML msgmove
+            case MSGUSEDETAIL: drawSimpleRows(c, w, h, "Use detail", new String[]{"Add to contact", "Send message", "Send number", "Call number", "Edit number", "Call"}); break; // HTML msgusedetail
             case ADD_CONTACT: drawAddContact(c, w, h); break;
             case COMPOSE_NUMBER:
             case COMPOSE_TEXT: drawCompose(c, w, h); break;
@@ -887,7 +945,7 @@ public class NokiaUi extends View {
             }
             composeTap.commit();
             if ((screen == Screen.COMPOSE_NUMBER || screen == Screen.COMPOSE_TEXT)
-                    && (composeNumber.length() > 0 || composeTap.text().length() > 0)) {
+                    && composeTap.text().trim().length() > 0) { // HTML: only typed text counts; an untouched To: exits silently
                 composeExitConfirm = true; // sim END on a non-empty compose asks "Save message?"
                 invalidate();
                 return true;
@@ -1195,7 +1253,9 @@ public class NokiaUi extends View {
 
     private void rebuildConvos() {
         convos = new ArrayList<>();
+        unreadSenders.clear();
         for (PhoneStore.Sms m : threads) {
+            if (m.unread && m.type != 2 && m.address != null) unreadSenders.add(m.address); // HTML: unread = any unread in the thread
             boolean seen = false;
             for (PhoneStore.Sms x : convos) {
                 if (x.address != null && x.address.equals(m.address)) { seen = true; break; }
@@ -1207,11 +1267,10 @@ public class NokiaUi extends View {
     private void openConversation(String address) {
         convoAddress = address;
         convoMsgs = new ArrayList<>();
-        for (int i = threads.size() - 1; i >= 0; i--) {
-            PhoneStore.Sms m = threads.get(i);
+        for (PhoneStore.Sms m : threads) { // threads is newest-first; HTML sel 0 is the newest, drawn on top
             if (m.address != null && m.address.equals(address)) convoMsgs.add(m);
         }
-        row = convoMsgs.isEmpty() ? 0 : convoMsgs.size() - 1;
+        row = 0;
         screen = Screen.CONVERSATION;
     }
 
@@ -1417,6 +1476,7 @@ public class NokiaUi extends View {
                 else { screen = Screen.LIST; row = 0; }
                 break;
             case CONVERSATION: screen = Screen.THREADS; row = 0; break;
+                case MSGMOVE: case MSGUSEDETAIL: screen = Screen.READ; break; // HTML: back from msgmove/msgusedetail lands on msgopen
             case READ:
                 if (readFromInbox) { readFromInbox = false; screen = Screen.LIST; } // sim: messageread back returns to the inbox view
                 else screen = convoAddress != null ? Screen.CONVERSATION : Screen.THREADS;
@@ -1505,7 +1565,7 @@ public class NokiaUi extends View {
         }
         int count = listCount();
         if (count == 0) return;
-        if (screen == Screen.THREADS || (screen == Screen.LIST && listSection == 61)) {
+        if (screen == Screen.THREADS || screen == Screen.CONVERSATION || (screen == Screen.LIST && listSection == 61)) {
             // Sim conversations/inbox: clamp at both ends, no wrap; crossing a
             // conversations page boundary shows the 'Opening folder' interstitial.
             int oldRow = row;
@@ -1608,6 +1668,8 @@ public class NokiaUi extends View {
             case CDSETTINGS: return 2;
             case THREADS: return convos.size();
             case CONVERSATION: return Math.max(convoMsgs.size(), 1);
+            case MSGMOVE: return 1;
+            case MSGUSEDETAIL: return 6;
             case CALLLOG: case CONTACTS: return rows.size();
             case CONTACT_CARD: return 1; // sim: just the number row
             case CONTACTS_HOME: return CONTACTS_MENU.length;
@@ -1958,20 +2020,78 @@ public class NokiaUi extends View {
                 }
                 break;
             case CONVERSATION:
-                if (!convoMsgs.isEmpty() && row < convoMsgs.size()) {
-                    int idx = threads.indexOf(convoMsgs.get(row));
-                    readIndex = Math.max(idx, 0);
-                    readFromInbox = false;
-                    screen = Screen.READ;
+                // HTML: OK on the selected bubble - received replies, sent opens the
+                // full-screen light view (msgopen); empty conversation opens the composer.
+                if (convoMsgs.isEmpty()) {
+                    composeNumber.setLength(0); composeTap.clear();
+                    composeFocus = 0; composeFromDraft = false; composeOrigin = "new";
+                    screen = Screen.COMPOSE_NUMBER;
+                } else {
+                    PhoneStore.Sms m = convoMsgs.get(Math.min(row, convoMsgs.size() - 1));
+                    if (m.type == 2) {
+                        int idx = threads.indexOf(m);
+                        readIndex = Math.max(idx, 0);
+                        readFromInbox = false;
+                        screen = Screen.READ;
+                    } else {
+                        m.unread = false;
+                        rebuildConvos();
+                        composeNumber.setLength(0);
+                        composeNumber.append(m.address == null ? "" : m.address);
+                        composeTap.clear();
+                        composeFocus = 1;
+                        composeFromDraft = false;
+                        composeOrigin = "reply";
+                        screen = Screen.COMPOSE_NUMBER;
+                    }
                 }
                 break;
-            case READ:
+            case MSGMOVE: // HTML msgmove OK: splice the message, notice, back to the conversation
                 if (!threads.isEmpty()) {
-                    composeNumber.setLength(0);
-                    composeNumber.append(threads.get(readIndex).address);
-                    composeTap.clear();
-                    composeFromDraft = false; screen = Screen.COMPOSE_NUMBER;
+                    PhoneStore.Sms m = threads.get(Math.min(readIndex, threads.size() - 1));
+                    threads.remove(m);
+                    if (convoMsgs != null) convoMsgs.remove(m);
+                    rebuildConvos();
+                    if (row >= convoMsgs.size()) row = Math.max(0, convoMsgs.size() - 1);
+                    notice = "Moved to Saved messages"; // verbatim
                 }
+                screen = readFromInbox ? Screen.LIST : (convoAddress != null ? Screen.CONVERSATION : Screen.THREADS);
+                break;
+            case MSGUSEDETAIL: { // HTML msgusedetail OK handlers, verbatim
+                if (threads.isEmpty()) break;
+                PhoneStore.Sms m = threads.get(Math.min(readIndex, threads.size() - 1));
+                String num = m.address == null ? "" : m.address;
+                switch (row) {
+                    case 0: notice = "Number added to contact"; break; // HTML verbatim notice
+                    case 1: // Send message: empty text, To: prefilled
+                        composeNumber.setLength(0); composeNumber.append(num);
+                        composeTap.clear(); composeFocus = 1; composeFromDraft = false; composeOrigin = "usedetail";
+                        screen = Screen.COMPOSE_NUMBER; break;
+                    case 2: // Send number: the number as the text, empty To:
+                        composeNumber.setLength(0);
+                        composeTap.set(num); composeFocus = 0; composeFromDraft = false; composeOrigin = "usedetail";
+                        screen = Screen.COMPOSE_NUMBER; break;
+                    default: // Call number / Edit number / Call -> the dial page
+                        screen = Screen.DIALER; break;
+                }
+                break;
+            }
+            case READ:
+                // HTML: inbox messageread OK replies; msgopen (conversation) OK starts a send.
+                if (threads.isEmpty()) break;
+                composeFromDraft = false;
+                if (readFromInbox) {
+                    composeNumber.setLength(0);
+                    composeNumber.append(threads.get(readIndex).address == null ? "" : threads.get(readIndex).address);
+                    composeTap.clear();
+                } else {
+                    PhoneStore.Sms m = threads.get(Math.min(readIndex, threads.size() - 1));
+                    composeNumber.setLength(0);
+                    composeTap.set(m.body == null ? "" : m.body);
+                    composeFocus = 0;
+                    composeOrigin = "send";
+                }
+                screen = Screen.COMPOSE_NUMBER;
                 break;
             case COMPOSE_NUMBER:
                 if (resolvedFocus() == 0) {
@@ -2143,7 +2263,7 @@ public class NokiaUi extends View {
             return;
         }
         if (listSection == 61) { // Sim inbox: OK opens the message (messageread)
-            if (!threads.isEmpty() && row < threads.size()) { readIndex = row; readFromInbox = true; screen = Screen.READ; }
+            if (!threads.isEmpty() && row < threads.size()) { readIndex = row; threads.get(row).unread = false; readFromInbox = true; screen = Screen.READ; } // HTML marks it read
             return;
         }
         if ((listSection >= 58 && listSection <= 60) || listSection == 62) return; // sim: no row routes on these pages
@@ -2897,6 +3017,19 @@ public class NokiaUi extends View {
                 p.setTextSize(14 * px); // sim .messageRow span 14px
                 String prev = m.body == null ? "" : m.body.replace('\n', ' ');
                 c.drawText(ellipsize(prev, w - tx - 6 * px, p), tx, top + 3 * px + 18 * px + 18 * px, p);
+            }
+            return;
+        }
+        if (listSection == 62) { // HTML msgdetails: free-flowing white rows, no selection, soft('','','Back')
+            float u = w / 240f;
+            float y = statusH(h) + titleH(h) + 10 * u;
+            p.setTextAlign(Paint.Align.LEFT);
+            p.setColor(Color.WHITE);
+            p.setTextSize(15 * u);
+            float lh = 15 * u * 1.35f;
+            for (String line : detailsRows()) {
+                y += lh;
+                if (!line.isEmpty()) c.drawText(line, 9 * u, y, p);
             }
             return;
         }
@@ -5142,42 +5275,69 @@ public class NokiaUi extends View {
     }
 
     private void drawThreads(Canvas c, int w, int h) {
-        // Sim conversations: title with sel/total count, 54px icon-less rows,
-        // white-invert selection, 4-row window anchored on the selection.
+        // HTML conversations: 54px rows, 22px envelope icon at left 6px (closed =
+        // unread, open = read, closed + green check = sent), bold 18px name,
+        // 14px preview (message text for received, "Sent <when>" for sent;
+        // white while unread, #bbb otherwise), n/N counter in the title.
         drawTitle(c, w, h, "Conversations", convos.isEmpty() ? null : (row + 1) + "/" + convos.size());
-        if (convos.isEmpty()) return; // sim conversations is never empty and defines no empty text
+        if (convos.isEmpty()) return; // HTML conversations is never empty and defines no empty text
         int n = convos.size();
-        int start = Math.max(0, Math.min(row - 3, Math.max(n - 4, 0))); // sim start=clamp(sel-3,0,175)
-        // Single scale base (width): the HTML's 240px reference scales
-        // uniformly; mixing a height base for rows with a width base for
-        // text stretched rows on tall phones ("SMS are not scaled").
-        float px = w / 240f;
+        int start = Math.max(0, Math.min(row - 3, Math.max(n - 4, 0)));
+        float px = w / 240f; // width scale base only (see drawConversation)
         float listTop = statusH(h) + titleH(h);
         float rowH = 54 * px;
         for (int j = 0; j < Math.min(4, n - start); j++) {
             int i = start + j;
             float top = listTop + j * rowH;
             boolean sel = i == row;
-            if (sel) { p.setStyle(Paint.Style.FILL); p.setColor(Color.WHITE); c.drawRect(0, top, w, top + rowH, p); }
-            int col = sel ? Color.BLACK : Color.WHITE; // sim .conversationRow.sel inverts
-            int subCol = sel ? Color.parseColor("#333333") : Color.parseColor("#BBBBBB"); // sim .sel span #333, span #bbb
+            if (sel) { // HTML .conversationRow.sel: #FEFEFE -> #E3E5EF vertical gradient, black text
+                p.setStyle(Paint.Style.FILL);
+                p.setShader(new android.graphics.LinearGradient(0, top, 0, top + rowH,
+                        Color.parseColor("#FEFEFE"), Color.parseColor("#E3E5EF"),
+                        android.graphics.Shader.TileMode.CLAMP));
+                c.drawRect(0, top, w, top + rowH, p);
+                p.setShader(null);
+            }
+            PhoneStore.Sms m = convos.get(i);
+            boolean sent = m.type == 2;
+            boolean unread = unreadSenders.contains(m.address);
+            String kind = unread ? "unread" : (sent ? "sent" : "read"); // HTML: unread wins, then the latest direction
+            float iconL = 6 * px, iconT = top + (rowH - 22 * px) / 2;
+            c.drawBitmap(convIcon("read".equals(kind)), null,
+                    new android.graphics.RectF(iconL, iconT, iconL + 22 * px, iconT + 22 * px), null);
+            if ("sent".equals(kind)) { // HTML .cb.cbOk: 10px green circle + white check at left 20 top 28
+                float bd = 10 * px, bx = 20 * px, by = top + 28 * px;
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(Color.parseColor("#2E9E3A"));
+                c.drawCircle(bx + bd / 2, by + bd / 2, bd / 2, p);
+                p.setColor(Color.WHITE);
+                p.setTextSize(8 * px);
+                p.setFakeBoldText(true);
+                p.setTextAlign(Paint.Align.CENTER);
+                c.drawText("\u2713", bx + bd / 2, by + bd - 2 * px, p);
+                p.setFakeBoldText(false);
+                p.setTextAlign(Paint.Align.LEFT);
+            }
+            int col = sel ? Color.BLACK : Color.WHITE;
+            int subCol = sel ? Color.parseColor("#333333")
+                    : (unread && !sent) ? Color.WHITE : Color.parseColor("#BBBBBB"); // HTML span.unreadPrev stays white
             p.setTextAlign(Paint.Align.LEFT);
             p.setFakeBoldText(true);
             p.setColor(col);
-            p.setTextSize(18 * px); // sim .conversationRow name 18px bold
-            c.drawText(ellipsize(displayName(convos.get(i).address), w - 16 * px, p), 8 * px, top + (5 + 15) * px, p);
+            p.setTextSize(18 * px);
+            c.drawText(ellipsize(displayName(m.address), w - 40 * px, p), 34 * px, top + (5 + 15) * px, p);
             p.setFakeBoldText(false);
-            p.setTextSize(14 * px); // sim .conversationRow span 14px
+            p.setTextSize(14 * px);
             p.setColor(subCol);
-            String prev = convos.get(i).directionLabel() + " " + timeLabel(convos.get(i).date); // sim preview: direction + time only
-            c.drawText(ellipsize(prev, w - 16 * px, p), 8 * px, top + (5 + 15) * px + 18 * px, p);
+            String prev = sent ? "Sent " + msgWhen(m.date) : (m.body == null ? "" : m.body);
+            c.drawText(ellipsize(prev, w - 40 * px, p), 34 * px, top + (5 + 15) * px + 18 * px, p);
         }
     }
 
     private void drawConversation(Canvas c, int w, int h) {
         drawTitle(c, w, h, displayName(convoAddress));
-        if (convoMsgs.isEmpty()) return; // sim conversation always has its demo bubbles; no empty text
-        // Sim v4.89: title carries a right-aligned "n/N" position count.
+        if (convoMsgs.isEmpty()) return;
+        // HTML .count: right-aligned n/N in the title row.
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         p.setTextSize(w * 0.067f);
         p.setColor(Color.parseColor("#DDDDDD"));
@@ -5186,147 +5346,92 @@ public class NokiaUi extends View {
         p.setTextAlign(Paint.Align.LEFT);
         p.setTypeface(Typeface.DEFAULT);
 
-        float areaTop = statusH(h) + titleH(h);
-        float areaBot = softTop(h);
-        float areaH = areaBot - areaTop;
-        // Single scale base (width) for text AND vertical metrics; the old
-        // areaH-based paddings stretched bubbles apart on tall phones.
+        // HTML .thread: top-anchored flow, bottom clipped. .bubble: dark navy
+        // #1d2a47/#dfe6f5; selected light #f4f4f4/#111 with #9aa3b5 outline and
+        // a bottom-left tail; 18px envelope icon at left 4 top 3 (bubble padding
+        // 16/6/5/27), 10px timestamp at right 5 top 3, text clipped to 3 lines.
         float u = w / 240f;
-        float padX = 6 * u;                     // .thread side padding
-        float maxBW = w * 0.88f;                // .bubble max-width 88%
-        float bPadH = 7 * u;                    // bubble side padding 7px
-        float bPadTop = 14 * u;                 // bubble top padding 14px
-        float bPadBot = 5 * u;
-        float bMargin = 4 * u;
-        float textSize = 14 * u;                // bubble text 14px
-        float timeSize = 10 * u;                // sim .bubble small: 10px
-        float lineH = textSize * 1.15f;         // sim line-height 1.15
-        float radius = 3 * u;
-        float sepInset = 25 * u;
-        float sepH = 16 * u;
-        float sepText = 12 * u;
-
-        // Items: separator marker (negative) or message index, oldest first.
-        List<Integer> items = new ArrayList<>();
-        List<String> sepDays = new ArrayList<>();
-        String lastDay = null;
+        float y = statusH(h) + titleH(h) + 3 * u; // .thread padding-top 3px
+        float areaBot = softTop(h);
+        float padX = 6 * u;
+        float maxBW = 0.94f * 240 * u; // .bubble max-width 94%
+        float textSize = 14 * u;
+        float timeSize = 10 * u;
+        float lineH = textSize * 1.15f;
         for (int i = 0; i < convoMsgs.size(); i++) {
-            String day = dayLabel(convoMsgs.get(i).date);
-            if (!day.equals(lastDay)) {
-                items.add(-1 - sepDays.size());
-                sepDays.add(day);
-                lastDay = day;
-            }
-            items.add(i);
-        }
-
-        // Measure item heights.
-        int n = items.size();
-        float[] ht = new float[n];
-        List<List<String>> linesByItem = new ArrayList<>();
-        List<Float> widthByItem = new ArrayList<>();
-        for (int it = 0; it < n; it++) {
-            int v = items.get(it);
-            if (v < 0) {
-                ht[it] = sepH;
-                linesByItem.add(new ArrayList<String>());
-                widthByItem.add(0f);
-            } else {
-                PhoneStore.Sms m = convoMsgs.get(v);
-                String body = m.body == null ? "" : m.body;
-                List<String> lines = new ArrayList<>();
-                float avail = maxBW - 2 * bPadH;
-                p.setTextSize(textSize);
-                String[] words = body.split(" ");
-                StringBuilder line = new StringBuilder();
-                for (String word : words) {
-                    String candidate = line.length() == 0 ? word : line + " " + word;
-                    if (p.measureText(candidate) > avail && line.length() > 0) {
-                        lines.add(line.toString());
-                        line = new StringBuilder(word);
-                    } else {
-                        line = new StringBuilder(candidate);
-                    }
-                }
-                lines.add(line.toString());
-                float widest = 0f;
-                for (String ln : lines) widest = Math.max(widest, p.measureText(ln));
-                p.setTextSize(timeSize);
-                widest = Math.max(widest, p.measureText(timeLabel(m.date) + " "));
-                linesByItem.add(lines);
-                widthByItem.add(Math.min(maxBW, widest + 2 * bPadH));
-                ht[it] = bPadTop + lines.size() * lineH + bPadBot;
-            }
-        }
-
-        // Window: as many items as fit, anchored at the newest (bottom).
-        int selItem = 0;
-        for (int it = 0; it < n; it++) if (items.get(it) == row) { selItem = it; break; }
-        int start = n - 1;
-        float used = 0f;
-        while (start >= 0 && used + ht[start] <= areaH) { used += ht[start]; start--; }
-        start++;
-        int lastIdx = n - 1;
-        if (selItem < start) { // selection above the window: re-anchor at the selection
-            start = selItem;
-            used = 0f;
-            lastIdx = start - 1;
-            while (lastIdx + 1 < n && used + ht[lastIdx + 1] <= areaH) { lastIdx++; used += ht[lastIdx]; }
-        }
-
-        float y = areaBot - used;
-        for (int it = start; it <= lastIdx; it++) {
-            int v = items.get(it);
-            if (v < 0) {
-                // Sim dateSep: centred #555 bar, white 12px text.
+            PhoneStore.Sms m = convoMsgs.get(i);
+            boolean sel = i == row;
+            boolean sent = m.type == 2;
+            String kind = sent ? "sent" : (m.unread ? "unread" : "read");
+            String body = m.body == null ? "" : m.body;
+            float avail = maxBW - 27 * u - 6 * u;
+            p.setTextSize(textSize);
+            java.util.List<String> lines = wrapLines(body, avail, 3);
+            float widest = 0f;
+            for (String ln : lines) widest = Math.max(widest, p.measureText(ln));
+            p.setTextSize(timeSize);
+            widest = Math.max(widest, p.measureText(msgWhen(m.date) + "  "));
+            float bw = Math.min(maxBW, Math.max(widest + 27 * u + 6 * u, 46 * u));
+            float bh = 16 * u + lines.size() * lineH + 5 * u;
+            if (y + bh > areaBot && i != row) break; // .thread overflow hidden
+            float bx = padX;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor(sel ? "#F4F4F4" : "#1D2A47"));
+            c.drawRoundRect(new android.graphics.RectF(bx, y, bx + bw, y + bh), 3 * u, 3 * u, p);
+            if (sel) {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1 * u);
+                p.setColor(Color.parseColor("#9AA3B5"));
+                c.drawRoundRect(new android.graphics.RectF(bx + 0.5f * u, y + 0.5f * u, bx + bw - 0.5f * u, y + bh - 0.5f * u), 3 * u, 3 * u, p);
                 p.setStyle(Paint.Style.FILL);
-                p.setColor(Color.parseColor("#555555"));
-                c.drawRect(sepInset, y, w - sepInset, y + ht[it], p);
-                p.setColor(Color.WHITE);
-                p.setTextSize(sepText);
-                p.setTextAlign(Paint.Align.CENTER);
-                c.drawText(sepDays.get(-1 - v), w / 2f, y + ht[it] * 0.72f, p);
-                p.setTextAlign(Paint.Align.LEFT);
-            } else {
-                PhoneStore.Sms m = convoMsgs.get(v);
-                boolean mine = m.type == 2;
-                List<String> lines = linesByItem.get(it);
-                float bw = widthByItem.get(it);
-                float bx = mine ? (w - padX - bw) : padX;
-                p.setStyle(Paint.Style.FILL);
-                // Sim cascade: theirs #e7e7e7/#222; mine #c9dcf3 with white text.
-                // Sim cascade: .bubble #eee/#111 for both sides; .mine only swaps bg to #c9dcf3.
-                p.setColor(Color.parseColor(mine ? "#C9DCF3" : "#EEEEEE"));
-                c.drawRoundRect(new android.graphics.RectF(bx, y, bx + bw, y + ht[it]), radius, radius, p);
-                int fg = Color.parseColor("#111111");
-                // Sim .bubble small: timestamp absolute at the bubble's top-right, 10px #555.
-                p.setTextSize(timeSize);
-                p.setColor(Color.parseColor("#555555"));
-                p.setTextAlign(Paint.Align.RIGHT);
-                c.drawText(timeLabel(m.date), bx + bw - 5 * u, y + 2 * u + timeSize, p);
-                p.setTextAlign(Paint.Align.LEFT);
-                float textX = bx + bPadH;
-                float baseline = y + bPadTop + lineH * 0.8f;
-                for (int li = 0; li < lines.size(); li++) {
-                    p.setTextSize(textSize);
-                    p.setColor(fg);
-                    c.drawText(lines.get(li), textX, baseline, p);
-                    baseline += lineH;
-                }
+                // HTML .bubble.sel::after: 12px box at bottom:-6px left:0, top+left borders coloured
+                android.graphics.Path tail = new android.graphics.Path();
+                tail.moveTo(bx, y + bh - 6 * u);
+                tail.lineTo(bx + 12 * u, y + bh - 6 * u);
+                tail.lineTo(bx, y + bh + 6 * u);
+                tail.close();
+                p.setColor(Color.parseColor("#F4F4F4"));
+                c.drawPath(tail, p);
             }
-            y += ht[it] + bMargin;
+            drawMsgIcon(c, bx + 4 * u, y + 3 * u, u, kind);
+            p.setTextSize(timeSize);
+            p.setColor(Color.parseColor(sel ? "#555555" : "#8FA3C8"));
+            p.setTextAlign(Paint.Align.RIGHT);
+            c.drawText(msgWhen(m.date), bx + bw - 5 * u, y + 3 * u + timeSize, p);
+            p.setTextAlign(Paint.Align.LEFT);
+            p.setTextSize(textSize);
+            p.setColor(Color.parseColor(sel ? "#111111" : "#DFE6F5"));
+            float baseline = y + 16 * u + lineH * 0.8f;
+            for (String ln : lines) { c.drawText(ln, bx + 27 * u, baseline, p); baseline += lineH; }
+            y += bh + 4 * u;
+            if (y > areaBot) break;
         }
     }
 
     private void drawRead(Canvas c, int w, int h) {
         if (threads.isEmpty()) return;
         PhoneStore.Sms m = threads.get(readIndex);
+        if (!readFromInbox) {
+            // HTML msgopen: full-screen #f4f4f4 view (no title), #111 15px/1.3 pre-wrap text.
+            float u = w / 240f;
+            float top = statusH(h), bot = softTop(h);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.parseColor("#F4F4F4"));
+            c.drawRect(0, top, w, bot, p);
+            p.setColor(Color.parseColor("#111111"));
+            p.setTextSize(15 * u);
+            c.save();
+            c.clipRect(new android.graphics.Rect(0, (int) top, w, (int) bot));
+            java.util.List<String> lines = wrapLines(m.body == null ? "" : m.body, w - 18 * u, 1000);
+            float baseline = top + 12 * u + 15 * u * 1.3f * 0.8f;
+            float lh = 15 * u * 1.3f;
+            for (String ln : lines) { c.drawText(ln, 9 * u, baseline, p); baseline += lh; }
+            c.restore();
+            return;
+        }
+        // HTML messageread (inbox open): title + boxed light readBox on the dark screen.
         drawTitle(c, w, h, displayName(m.address));
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
-        // Sim v4.89 .readBox: absolute left/right 8px, top 42px, bottom 40px (253px screen space),
-        // bg #f4f4f4, color #111, padding 10px, font-size 17px, pre-wrap.
-        // Width scale base, same as the text inside; height base stretched
-        // the box away from its text on tall phones.
         float sc = w / 240f;
         float boxTop = statusH(h) + 42 * sc;
         float boxBot = softTop(h) - 40 * sc;
@@ -5336,15 +5441,61 @@ public class NokiaUi extends View {
         p.setColor(COL_READ_BG);
         c.drawRect(boxL, boxTop, boxR, boxBot, p);
         p.setColor(COL_READ_FG);
-        p.setTextSize(w * (17f / 240f)); // sim 17px
+        p.setTextSize(w * (17f / 240f));
         android.graphics.Rect clip = new android.graphics.Rect(
                 (int) boxL, (int) boxTop, (int) boxR, (int) boxBot);
         c.save();
         c.clipRect(clip);
-        float tx = boxL + w * (10f / 240f); // 10px padding
-        drawWrapped(c, m.body == null ? "" : m.body, tx, boxR - tx - w * (10f / 240f), boxTop + w * (23.6f / 240f), w * (20.4f / 240f)); // first baseline + 17px*1.2 line height
+        float tx = boxL + w * (10f / 240f);
+        drawWrapped(c, m.body == null ? "" : m.body, tx, boxR - tx - w * (10f / 240f), boxTop + w * (23.6f / 240f), w * (20.4f / 240f));
         c.restore();
         p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // HTML rows(): standard .rows list with the gradient selection pill.
+    private void drawSimpleRows(Canvas c, int w, int h, String title, String[] items) {
+        drawTitle(c, w, h, title);
+        drawItemRows(c, w, h, items.length, i -> items[i], null, null);
+    }
+
+    // HTML msgdetails: resolves the message the details page was opened on.
+    private PhoneStore.Sms detailsMessage() {
+        if (msgDetailsFrom == Screen.READ || msgDetailsFrom == Screen.LIST) {
+            if (!threads.isEmpty()) return threads.get(Math.min(msgDetailsRow, threads.size() - 1));
+        } else if (msgDetailsFrom == Screen.CONVERSATION) {
+            if (!convoMsgs.isEmpty()) return convoMsgs.get(Math.min(msgDetailsRow, convoMsgs.size() - 1));
+        } else if (msgDetailsFrom == Screen.THREADS) {
+            if (!convos.isEmpty()) return convos.get(Math.min(msgDetailsRow, convos.size() - 1));
+        }
+        return null;
+    }
+
+    // HTML msgdetails rows: To:/From: block, Sent block, Size/Type/Linked.
+    private String[] detailsRows() {
+        PhoneStore.Sms m = detailsMessage();
+        if (m == null) return new String[0];
+        boolean out = m.type == 2;
+        java.util.Calendar now = java.util.Calendar.getInstance(), d = java.util.Calendar.getInstance();
+        d.setTimeInMillis(m.date);
+        boolean today = now.get(java.util.Calendar.YEAR) == d.get(java.util.Calendar.YEAR)
+                && now.get(java.util.Calendar.DAY_OF_YEAR) == d.get(java.util.Calendar.DAY_OF_YEAR);
+        String time = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.UK).format(new java.util.Date(m.date));
+        String body = m.body == null ? "" : m.body;
+        int parts = Math.max(1, (body.length() + 159) / 160);
+        String size = String.format(java.util.Locale.UK, "%.1f kB", Math.max(0.1, body.length() / 1024.0));
+        return new String[]{
+                out ? "To:" : "From:",
+                out ? "(no name)" : displayName(m.address),
+                m.address == null ? "" : m.address,
+                "",
+                "Sent:",
+                time,
+                today ? "Today" : dayLabel(m.date),
+                "",
+                "Size: " + size,
+                "Message type: Text message",
+                "Linked: " + parts + "/" + parts,
+        };
     }
 
     // Focus resolves to the To: field until it holds a recipient.
@@ -5363,6 +5514,10 @@ public class NokiaUi extends View {
             rebuildConvos();
             screen = Screen.THREADS;
             row = 0;
+            if ("sendcopy".equals(composeOrigin)) { // HTML: after a Send copy send, the 'Save message?' prompt appears
+                composeOrigin = "new";
+                composeExitConfirm = true;
+            }
             handler.postDelayed(() -> { composeSent = false; invalidate(); }, 1500);
         }
     }
@@ -5922,7 +6077,7 @@ public class NokiaUi extends View {
                 if (from == Screen.LIST && (listSection == 58 || listSection == 62)) { notice = "Open selected"; break; } // sim generic option fallback notice
                 if (from == Screen.ALARM) alarmChange();
                 else if (from == Screen.ALARM_EDIT) alarmSave();
-                else if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; screen = Screen.READ; }
+                else if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; threads.get(row).unread = false; rebuildConvos(); screen = Screen.READ; // HTML: opening marks the message read }
                 else if (from == Screen.CONTACTS_HOME || from == Screen.CALLLOG_HOME) selectCurrent();
                 else if (from == Screen.LIST) selectListItem();
                 else if (from == Screen.INTERVALTIMER) notice = "Open selected"; // sim generic notice
@@ -5991,10 +6146,14 @@ public class NokiaUi extends View {
                 if (from == Screen.READ || (from == Screen.LIST && listSection == 61)) notice = "Reply as text message"; // sim notice, verbatim
                 break;
             case "Use detail":
-                if (from == Screen.READ || (from == Screen.LIST && listSection == 61)) notice = "Phone number selected"; // sim notice, verbatim
+                if (from == Screen.READ) { // HTML msgopen Use detail: the msgusedetail picker
+                    screen = Screen.MSGUSEDETAIL;
+                    row = 0;
+                } else if (from == Screen.LIST && listSection == 61) notice = "Phone number selected"; // sim notice, verbatim
                 break;
             case "Copy as template":
-                if (from == Screen.READ || (from == Screen.LIST && listSection == 61)) notice = "Copied as template"; // sim notice, verbatim
+                if (from == Screen.READ) notice = "Saved to Templates"; // HTML verbatim
+                else if (from == Screen.LIST && listSection == 61) notice = "Copied as template"; // sim notice, verbatim
                 break;
             case "Make a note":
                 // Sim: calendar/organiser 'Make a note' opens the note-type picker;
@@ -6165,7 +6324,12 @@ public class NokiaUi extends View {
                 break;
             case "Move": case "Move to folder": case "Organise":
                 // Sim: Move on message pages notices 'Moved to Saved messages' verbatim.
-                if (item.equals("Move") && (from == Screen.READ || from == Screen.CONVERSATION || (from == Screen.LIST && listSection == 61))) notice = "Moved to Saved messages";
+                if (item.equals("Move")) {
+                    if (from == Screen.READ) { // HTML msgopen Move: the msgmove picker
+                        screen = Screen.MSGMOVE;
+                        row = 0;
+                    } else if (from == Screen.CONVERSATION || (from == Screen.LIST && listSection == 61)) notice = "Moved to Saved messages";
+                }
                 // Sim chain: '<option> mode opened' notice on list pages.
                 else if (from == Screen.LIST || from == Screen.CONVERSATION || from == Screen.READ) notice = item + " mode opened";
                 break;
@@ -6308,7 +6472,7 @@ public class NokiaUi extends View {
             case "New message":
                 // Sim: messaging home + folder options open the createmessage page; inbox/read start the composer.
                 if (from == Screen.LIST && (listSection == 0 || (listSection >= 11 && listSection <= 14))) openListSection(33);
-                else { composeNumber.setLength(0); composeTap.clear(); composeFromDraft = false; screen = Screen.COMPOSE_NUMBER; }
+                else { composeNumber.setLength(0); composeTap.clear(); composeFromDraft = false; composeOrigin = "new"; screen = Screen.COMPOSE_NUMBER; }
                 break;
             case "Go to Drafts":
                 if (from == Screen.CONVERSATION) openListSection(11); // sim conversation 'Go to drafts'
@@ -6378,11 +6542,25 @@ public class NokiaUi extends View {
                     composeNumber.setLength(0);
                     composeTap.set(m.body == null ? "" : m.body);
                     composeFromDraft = false;
+                    if (from == Screen.READ) { // HTML Edit: To: empty, cursor on To:
+                        composeOrigin = "edit";
+                        composeFocus = 0;
+                    }
                     screen = Screen.COMPOSE_NUMBER;
                 }
                 break;
             case "Delete":
-                if (from == Screen.LIST && listSection == 61) notice = "Message deleted"; // sim inbox delete notice, verbatim (messageread delete is a no-op)
+                if (from == Screen.READ) { // HTML msgopen Delete: splice, notice, back to the conversation
+                    if (!threads.isEmpty()) {
+                        PhoneStore.Sms dm = threads.get(Math.min(readIndex, threads.size() - 1));
+                        threads.remove(dm);
+                        if (convoMsgs != null) convoMsgs.remove(dm);
+                        rebuildConvos();
+                        if (row >= convoMsgs.size()) row = Math.max(0, convoMsgs.size() - 1);
+                    }
+                    notice = "Message deleted"; // verbatim
+                    screen = readFromInbox ? Screen.LIST : (convoAddress != null ? Screen.CONVERSATION : Screen.THREADS);
+                } else if (from == Screen.LIST && listSection == 61) notice = "Message deleted"; // sim inbox delete notice, verbatim
                 else if (from == Screen.CALVIEW) {
                     // HTML calview Delete: splices the selected day's note, notice verbatim.
                     java.util.ArrayList<String[]> a = calNotesOnDay();
@@ -6422,14 +6600,32 @@ public class NokiaUi extends View {
                 break;
             case "Message details": case "Conversation details":
                 // Sim: routes to the messagedetails page from read/inbox/conversations.
-                if (from == Screen.LIST && listSection == 61) openListSection(62);
+                if (from == Screen.LIST && listSection == 61) {
+                    msgDetailsFrom = Screen.LIST; // HTML inbox: details for the selected message
+                    msgDetailsRow = row;
+                    openListSection(62);
+                }
                 else if (from == Screen.READ || from == Screen.THREADS || from == Screen.CONVERSATION) {
                     msgDetailsFrom = from;
-                    msgDetailsRow = row;
+                    msgDetailsRow = from == Screen.READ ? readIndex : row; // HTML msgopen: details for the open message
                     listSection = 62;
                     row = 0;
                     screen = Screen.LIST;
                 }
+                break;
+            case "Send copy": // HTML msgopen: composer with the text prefilled, empty To:
+                if (from == Screen.READ && !threads.isEmpty()) {
+                    composeNumber.setLength(0);
+                    composeTap.set(threads.get(Math.min(readIndex, threads.size() - 1)).body);
+                    composeFocus = 0;
+                    composeFromDraft = false;
+                    composeOrigin = "sendcopy"; // save prompt fires after send (HTML)
+                    screen = Screen.COMPOSE_NUMBER;
+                } else notice = "Send copy";
+                break;
+            case "Copy to Calendar": // HTML msgopen: notice only, verbatim
+                if (from == Screen.READ) notice = "Copied to calendar";
+                else notice = "Copy to Calendar";
                 break;
             case "Forward":
                 if (from == Screen.READ || (from == Screen.LIST && listSection == 61)) { // sim: composer prefilled with the message body
@@ -6472,6 +6668,7 @@ public class NokiaUi extends View {
             composeNumber.setLength(0);
             composeTap.clear();
             composeFromDraft = false;
+            composeOrigin = "new";
             screen = Screen.COMPOSE_NUMBER;
         } else if ("MarkOne".equals(convoSubmenu)) {
             notice = "All messages marked"; // sim conversationMarkMenu OK notice, verbatim
@@ -6683,7 +6880,15 @@ public class NokiaUi extends View {
         switch (sc) {
             case THREADS: return new String[]{"Call", "Conversation details", "Delete conversation", "Inbox view >", "New message >", "Mark >", "Mark all"};
             case CONVERSATION: return new String[]{"Reply", "Delete", "Call", "Move", "Go to Drafts", "Conversation details", "Mark"};
-            case READ: return new String[]{"Reply", "Reply as", "Delete", "Call", "Use detail", "Forward", "Edit", "Move", "Copy as template", "Message details", "Conversation view", "New message"};
+            case READ:
+                if (readFromInbox) {
+                    // Sim inbox messageread options (in order).
+                    return new String[]{"Reply", "Reply as", "Delete", "Call", "Use detail", "Forward", "Edit", "Move", "Copy as template", "Message details", "Conversation view", "New message"};
+                }
+                // HTML msgopen options (handset-verified order): Delete, Send copy, Edit, Move,
+                // Use detail, Copy to Calendar, Copy as template, Message details.
+                return new String[]{"Delete", "Send copy", "Edit", "Move",
+                        "Use detail", "Copy to Calendar", "Copy as template", "Message details"};
             case CONTACTS: return new String[]{"Search", "Call >", "Send message >", "Add new >", "Edit >", "Delete contact", "Mark >"};
             case CALLLOG: return new String[]{"View", "Call", "Send message", "Save", "Delete", "Clear lists", "Call timers"};
             case ADD_CONTACT: return new String[]{"Open", "Details", "Help"}; // sim's generic fallback
@@ -6738,7 +6943,8 @@ public class NokiaUi extends View {
                         if (row == 7) return new String[]{"New message", "New e-mail", "Add mailbox", "Message log", "IM messages", "Memory status"};
                         return new String[]{"New message", "Message log", "Add mailbox", "IM messages", "Memory status"};
                     case 57: return new String[]{"Conversations", "Inbox"}; // sim opts.messageview
-                    case 58: case 62: return new String[]{"Open"}; // sim opts.simmessages / opts.messagedetails
+                    case 58: return new String[]{"Open"};
+                    case 62: return new String[0]; // HTML msgdetails: soft('','','Back')
                     case 61: return new String[]{"Reply", "Reply as", "Delete", "Call", "Use detail", "Forward", "Edit", "Move", "Copy as template", "Message details", "Conversation view", "New message"}; // sim opts.inbox
                     case 8: case 10: return new String[]{"Clear timers"};
                     case 9: return new String[]{"Clear counters"};
@@ -6866,8 +7072,11 @@ public class NokiaUi extends View {
                 return new String[]{left, centre, "Back"};
             }
             case THREADS: return new String[]{"Options", "Open", "Back"};
-            case CONVERSATION: return new String[]{"Options", "Open", "Back"};
-            case READ: return new String[]{"Options", "Reply", "Back"};
+            case CONVERSATION:
+                // HTML: Reply on received, Open on sent, Open on the empty placeholder.
+                return new String[]{"Options", convoMsgs.isEmpty() ? "Open"
+                        : (convoMsgs.get(Math.min(row, convoMsgs.size() - 1)).type == 2 ? "Open" : "Reply"), "Back"};
+            case READ: return new String[]{"Options", readFromInbox ? "Reply" : "Send", "Back"};
             case COMPOSE_NUMBER:
                 return new String[]{"Options", resolvedFocus() == 0 ? "Add" : (composeNumber.length() > 0 ? "Send" : "Add"),
                         (composeNumber.length() > 0 || composeTap.text().length() > 0) ? "Clear" : "Back"};
