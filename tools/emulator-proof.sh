@@ -113,6 +113,11 @@ tap() {
 CENTER="0.500 0.330"; UP="0.500 0.208"; DOWN="0.500 0.452"
 LEFT="0.165 0.330"; RIGHT="0.835 0.330"
 CALL="0.165 0.452"; END="0.835 0.452"; LSK="0.165 0.075"; RSK="0.835 0.075"
+
+# Log the modem call state (0=idle, 1=ringing, 2=offhook) at key moments.
+diag_callstate() {
+  "${ADB[@]}" shell "dumpsys telephony.registry 2>/dev/null | grep -m1 mCallState" | tr -d '\r' | sed "s/^/DIAG callstate $1: /"
+}
 D1="0.165 0.586"; D2="0.500 0.586"; D3="0.835 0.586"
 D4="0.165 0.699"; D5="0.500 0.699"; D6="0.835 0.699"
 D7="0.165 0.811"; D8="0.500 0.811"; D9="0.835 0.811"
@@ -225,7 +230,7 @@ echo "DIAG: installed: $("${ADB[@]}" shell dumpsys package "$PKG" 2>/dev/null | 
 "${ADB[@]}" shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER | tr -d '\r' | tail -3
 
 # Permissions must exist before the launcher queries providers.
-for perm in CALL_PHONE READ_CONTACTS READ_CALL_LOG READ_SMS SEND_SMS; do
+for perm in CALL_PHONE READ_CONTACTS READ_CALL_LOG READ_SMS SEND_SMS READ_PHONE_STATE ANSWER_PHONE_CALLS; do
   for g in 1 2 3; do
     "${ADB[@]}" shell pm grant "$PKG" "android.permission.$perm" 2>/dev/null && break
     echo "DIAG: pm grant $perm attempt $g failed; waiting for package service"
@@ -415,12 +420,15 @@ done
 cp "$SCREEN_DIR/probe-b-conv.png" "$SCREEN_DIR/05-sms-inbox.png"
 rm -f "$SCREEN_DIR"/probe-b-*.png
 
-# Dialer: END home, digits 1 2 3, green key to the system dialer.
+# Dialer: END home, digits 1 2 3, green key places a REAL call now
+# (ACTION_CALL with CALL_PHONE granted); the emulator modem connects it.
 tap_key END; sleep 1
 tap_key D1; sleep 1
 tap_key D2; sleep 1
 tap_key D3; sleep 1; shot 06-dialer
-tap_key CALL; sleep 3; shot 07-dial-bridge
+tap_key CALL; sleep 5
+diag_callstate "after dial"
+shot 07-dial-started
 
 # The bridge hands foreground to the stock dialer; a single BACK keyevent is
 # not a reliable return (proven: later taps dialed 123 for real inside the
@@ -453,7 +461,21 @@ fg_ours() {
   done
   return 1
 }
-fg_ours || { echo "DIAG: launcher not foreground after dial bridge - aborting"; exit 1; }
+# the stock telecom UI can hold the screen off via the proximity wake lock
+emu_console 'sensor set proximity 10' || true
+sleep 1
+fg_ours || { echo "DIAG: launcher not foreground after dial - aborting"; exit 1; }
+
+# Our launcher in the foreground shows the C2 incall screen for the live
+# call: number, ticking timer, Options/Menu/Loudsp. softkeys.
+fresh
+shot 07a-incall
+tap_key RSK; sleep 2; shot 07b-incall-loudsp
+# Red key ends the real call through TelecomManager; the telephony callback
+# then shows 'Call ended' on the idle screen.
+tap_key END; sleep 3
+diag_callstate "after end"
+shot 07c-call-ended
 
 # Real inbound call through the emulator modem. The incoming-call UI is the
 # stock AVD dialer; the watchdog's ANR kill/tap can dismiss it, so sweeping
@@ -462,16 +484,24 @@ touch "$NOSWEEP"
 emu_console 'gsm call +15557654321'
 sleep 6
 shot 08-incoming-call
-emu_console 'gsm cancel +15557654321'
-# the stock dialer holds the screen off via the proximity wake lock even after
-# the call ends; report "far" so wakeup/POWER can relight the display
+# Answer through the modem: our launcher foreground shows the C2 incall
+# screen with the ringing number, and our red key ends the call.
+emu_console 'gsm accept +15557654321'
+sleep 3
 emu_console 'sensor set proximity 10' || true
+sleep 1
+fg_ours || { echo "DIAG: launcher not foreground after answering - aborting"; exit 1; }
+shot 08a-incall-answered
+tap_key END; sleep 3
+diag_callstate "after answered end"
+shot 08b-answered-ended
+emu_console 'gsm cancel +15557654321' || true
 sleep 2
 rm -f "$NOSWEEP"
 sleep 2
 fg_ours || { echo "DIAG: launcher not foreground after incoming call - aborting"; exit 1; }
 
-# Call log: missed call from the modem must be listed.
+# Call log: the answered-then-ended modem call must be listed.
 fresh
 tap_key END; sleep 1
 tap_key CENTER; sleep 2
