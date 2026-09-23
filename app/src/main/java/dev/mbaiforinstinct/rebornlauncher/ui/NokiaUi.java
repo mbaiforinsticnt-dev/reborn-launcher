@@ -58,6 +58,65 @@ public class NokiaUi extends View {
     private final String[] mmsSettings = {"No", "No", "Guided", "1600x1200", "00:08", "Auto. in home nw.", "No", "Default / S40 MMS"};
     private String[] mmsBase; private boolean mmsDirty;
     private final String[] emailSettings = {"On", "In home network", "Yes", "1600x1200", "No mailboxes"};
+
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Typeface;
+import android.os.Handler;
+import android.view.KeyEvent;
+import android.view.View;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+
+import dev.mbaiforinstinct.rebornlauncher.data.PhoneStore;
+import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
+
+public class NokiaUi extends View {
+
+    public enum Screen {
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, CALMONTH, CALOPEN, INSERTWORD, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS, USEDETAILNUM, LOADINGNOTE, SCIENTIFIC, LOANINTRO, LOANCALC
+    }
+
+    public interface Actions {
+        void dial(String number);
+        void openRoute(String section, String item);
+        List<PhoneStore.Sms> sms();
+        List<String[]> callLog();
+        List<String[]> contacts();
+        boolean sendSms(String number, String text);
+        List<String[]> drafts();
+        void saveDraft(String number, String text);
+        void clearDrafts();
+        int getProfile();
+        void setProfile(int index);
+        String[] getAlarm();
+        void setAlarm(String[] state);
+        String[] getPlayer();
+        void setPlayer(String[] state);
+        boolean addContact(String name, String number);
+        boolean updateContact(String oldName, String oldNumber, String newName, String newNumber);
+        boolean deleteContact(String name, String number);
+        int missedCalls();
+        int unreadSms();
+        int batteryPercent();
+    }
+
+    // Sim v4.89 settings pages: live values, base snapshot on entry, dirty tracking.
+    private final String[] generalSettings = {"Yes", "Not allowed", "(not defined)", "Normal font", "Yes"};
+    private String[] generalBase; private boolean generalDirty;
+    private final String[] textSettings = {"No", "", "SIM msg centre 1", "Maximum time", "Text", "No", "Full", "No"};
+    private String[] textBase; private boolean textDirty;
+    private final String[] mmsSettings = {"No", "No", "Guided", "1600x1200", "00:08", "Auto. in home nw.", "No", "Default / S40 MMS"};
+    private String[] mmsBase; private boolean mmsDirty;
+    private final String[] emailSettings = {"On", "In home network", "Yes", "1600x1200", "No mailboxes"};
     private String[] emailBase; private boolean emailDirty;
     private final String[] serviceSettings = {"On", "On", "On"};
 
@@ -2538,10 +2597,9 @@ public class NokiaUi extends View {
         if (listSection == 11) { // Drafts: live list, sim .messageRow visuals (v4.85 burst 7 CSS); empty = blank area, no text
             int n = drafts.size();
             int start = Math.max(0, Math.min(row - 3, Math.max(n - 4, 0))); // sim start=clamp(sel-3,0,len-4)
-            float sc = screenH(h) / 253f;
-            float px = w / 240f;
+            float px = w / 240f; // width scale base only (see drawThreads)
             float listTop = statusH(h) + titleH(h);
-            float rowH = 54 * sc; // sim .messageRow 54px
+            float rowH = 54 * px; // sim .messageRow 54px
             for (int j = 0; j < Math.min(4, n - start); j++) {
                 int i = start + j;
                 float top = listTop + j * rowH;
@@ -2550,16 +2608,16 @@ public class NokiaUi extends View {
                 int col = sel ? Color.parseColor("#111111") : Color.WHITE; // sim .messageRow.sel color #111
                 p.setTextAlign(Paint.Align.LEFT);
                 p.setColor(col);
-                p.setTextSize(22 * sc); // sim .mailGlyph 22px, left 8 top 11
-                c.drawText("\u2709", 8 * px, top + (11 + 17) * sc, p); // sms glyph (launcher drafts are text)
+                p.setTextSize(22 * px); // sim .mailGlyph 22px, left 8 top 11
+                c.drawText("\u2709", 8 * px, top + (11 + 17) * px, p); // sms glyph (launcher drafts are text)
                 String[] d = drafts.get(i);
                 float tx = 40 * px; // sim .messageRow padding-left 40px
                 p.setFakeBoldText(true);
-                p.setTextSize(w * 0.075f);
-                c.drawText(ellipsize(displayName(d[0]), w - tx - 6 * px, p), tx, top + 17 * sc, p); // recipient as the row title
+                p.setTextSize(18 * px);
+                c.drawText(ellipsize(displayName(d[0]), w - tx - 6 * px, p), tx, top + 17 * px, p); // recipient as the row title
                 p.setFakeBoldText(false);
-                p.setTextSize(w * 0.058f); // sim .messageRow span 14px
-                c.drawText(ellipsize(d[0], w - tx - 6 * px, p), tx, top + 34 * sc, p); // number as the preview (sim sms preview)
+                p.setTextSize(14 * px); // sim .messageRow span 14px
+                c.drawText(ellipsize(d[0], w - tx - 6 * px, p), tx, top + 34 * px, p); // number as the preview (sim sms preview)
             }
             return;
         }
@@ -2725,10 +2783,9 @@ public class NokiaUi extends View {
         if (listSection == 61) { // Sim inbox: .messageRows window of 4 over the flat message list
             int n = threads.size();
             int start = Math.max(0, Math.min(row - 3, Math.max(n - 4, 0))); // sim start=clamp(sel-3,0,2171)
-            float sc = screenH(h) / 253f;
-            float px = w / 240f;
+            float px = w / 240f; // width scale base only (see drawThreads)
             float listTop = statusH(h) + titleH(h);
-            float rowH = 54 * sc;
+            float rowH = 54 * px;
             for (int j = 0; j < Math.min(4, n - start); j++) {
                 int i = start + j;
                 float top = listTop + j * rowH;
@@ -2738,16 +2795,16 @@ public class NokiaUi extends View {
                 PhoneStore.Sms m = threads.get(i);
                 p.setTextAlign(Paint.Align.LEFT);
                 p.setColor(col);
-                p.setTextSize(22 * sc);
-                c.drawText("\u2709", 8 * px, top + (11 + 17) * sc, p); // sim .mailGlyph
+                p.setTextSize(22 * px);
+                c.drawText("\u2709", 8 * px, top + (11 + 17) * px, p); // sim .mailGlyph
                 float tx = 40 * px;
                 p.setFakeBoldText(true);
-                p.setTextSize(w * 0.075f);
-                c.drawText(ellipsize(displayName(m.address), w - tx - 6 * px, p), tx, top + 3 * sc + w * 0.075f, p);
+                p.setTextSize(18 * px);
+                c.drawText(ellipsize(displayName(m.address), w - tx - 6 * px, p), tx, top + 3 * px + 18 * px, p);
                 p.setFakeBoldText(false);
-                p.setTextSize(w * 0.058f); // sim .messageRow span 14px
+                p.setTextSize(14 * px); // sim .messageRow span 14px
                 String prev = m.body == null ? "" : m.body.replace('\n', ' ');
-                c.drawText(ellipsize(prev, w - tx - 6 * px, p), tx, top + 3 * sc + w * 0.075f + w * 0.075f, p);
+                c.drawText(ellipsize(prev, w - tx - 6 * px, p), tx, top + 3 * px + 18 * px + 18 * px, p);
             }
             return;
         }
@@ -4999,10 +5056,12 @@ public class NokiaUi extends View {
         if (convos.isEmpty()) return; // sim conversations is never empty and defines no empty text
         int n = convos.size();
         int start = Math.max(0, Math.min(row - 3, Math.max(n - 4, 0))); // sim start=clamp(sel-3,0,175)
-        float sc = screenH(h) / 253f;
+        // Single scale base (width): the HTML's 240px reference scales
+        // uniformly; mixing a height base for rows with a width base for
+        // text stretched rows on tall phones ("SMS are not scaled").
         float px = w / 240f;
         float listTop = statusH(h) + titleH(h);
-        float rowH = 54 * sc;
+        float rowH = 54 * px;
         for (int j = 0; j < Math.min(4, n - start); j++) {
             int i = start + j;
             float top = listTop + j * rowH;
@@ -5013,13 +5072,13 @@ public class NokiaUi extends View {
             p.setTextAlign(Paint.Align.LEFT);
             p.setFakeBoldText(true);
             p.setColor(col);
-            p.setTextSize(w * 0.075f);
-            c.drawText(ellipsize(displayName(convos.get(i).address), w - 16 * px, p), 8 * px, top + (5 + 15) * sc, p);
+            p.setTextSize(18 * px); // sim .conversationRow name 18px bold
+            c.drawText(ellipsize(displayName(convos.get(i).address), w - 16 * px, p), 8 * px, top + (5 + 15) * px, p);
             p.setFakeBoldText(false);
-            p.setTextSize(w * 0.058f); // sim .conversationRow span 14px
+            p.setTextSize(14 * px); // sim .conversationRow span 14px
             p.setColor(subCol);
             String prev = convos.get(i).directionLabel() + " " + timeLabel(convos.get(i).date); // sim preview: direction + time only
-            c.drawText(ellipsize(prev, w - 16 * px, p), 8 * px, top + (5 + 15) * sc + w * 0.075f, p);
+            c.drawText(ellipsize(prev, w - 16 * px, p), 8 * px, top + (5 + 15) * px + 18 * px, p);
         }
     }
 
@@ -5038,19 +5097,22 @@ public class NokiaUi extends View {
         float areaTop = statusH(h) + titleH(h);
         float areaBot = softTop(h);
         float areaH = areaBot - areaTop;
-        float padX = w * (6f / 240f);           // .thread side padding
+        // Single scale base (width) for text AND vertical metrics; the old
+        // areaH-based paddings stretched bubbles apart on tall phones.
+        float u = w / 240f;
+        float padX = 6 * u;                     // .thread side padding
         float maxBW = w * 0.88f;                // .bubble max-width 88%
-        float bPadH = w * (7f / 240f);          // bubble side padding 7px
-        float bPadTop = areaH * (14f / 233f);   // bubble top padding 14px
-        float bPadBot = areaH * (5f / 233f);
-        float bMargin = areaH * (4f / 233f);
-        float textSize = w * (14f / 240f);      // bubble text 14px
-        float timeSize = w * (10f / 240f);      // sim .bubble small: 10px
+        float bPadH = 7 * u;                    // bubble side padding 7px
+        float bPadTop = 14 * u;                 // bubble top padding 14px
+        float bPadBot = 5 * u;
+        float bMargin = 4 * u;
+        float textSize = 14 * u;                // bubble text 14px
+        float timeSize = 10 * u;                // sim .bubble small: 10px
         float lineH = textSize * 1.15f;         // sim line-height 1.15
-        float radius = w * (3f / 240f);
-        float sepInset = w * (25f / 240f);
-        float sepH = areaH * (16f / 233f);
-        float sepText = w * (12f / 240f);
+        float radius = 3 * u;
+        float sepInset = 25 * u;
+        float sepH = 16 * u;
+        float sepText = 12 * u;
 
         // Items: separator marker (negative) or message index, oldest first.
         List<Integer> items = new ArrayList<>();
@@ -5149,7 +5211,7 @@ public class NokiaUi extends View {
                 p.setTextSize(timeSize);
                 p.setColor(Color.parseColor("#555555"));
                 p.setTextAlign(Paint.Align.RIGHT);
-                c.drawText(timeLabel(m.date), bx + bw - 5 * (w / 240f), y + 2 * (screenH(h) / 253f) + timeSize, p);
+                c.drawText(timeLabel(m.date), bx + bw - 5 * u, y + 2 * u + timeSize, p);
                 p.setTextAlign(Paint.Align.LEFT);
                 float textX = bx + bPadH;
                 float baseline = y + bPadTop + lineH * 0.8f;
@@ -5171,9 +5233,11 @@ public class NokiaUi extends View {
         p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
         // Sim v4.89 .readBox: absolute left/right 8px, top 42px, bottom 40px (253px screen space),
         // bg #f4f4f4, color #111, padding 10px, font-size 17px, pre-wrap.
-        float sc = screenH(h) / 253f;
+        // Width scale base, same as the text inside; height base stretched
+        // the box away from its text on tall phones.
+        float sc = w / 240f;
         float boxTop = statusH(h) + 42 * sc;
-        float boxBot = statusH(h) + 213 * sc;
+        float boxBot = softTop(h) - 40 * sc;
         float boxL = w * (8f / 240f);
         float boxR = w - boxL;
         p.setStyle(Paint.Style.FILL);
