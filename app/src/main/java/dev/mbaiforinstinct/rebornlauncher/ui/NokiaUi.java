@@ -6077,7 +6077,7 @@ public class NokiaUi extends View {
                 if (from == Screen.LIST && (listSection == 58 || listSection == 62)) { notice = "Open selected"; break; } // sim generic option fallback notice
                 if (from == Screen.ALARM) alarmChange();
                 else if (from == Screen.ALARM_EDIT) alarmSave();
-                else if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; threads.get(row).unread = false; rebuildConvos(); screen = Screen.READ; // HTML: opening marks the message read }
+                else if (from == Screen.THREADS && !threads.isEmpty()) { readIndex = row; threads.get(row).unread = false; rebuildConvos(); screen = Screen.READ; } // HTML: opening marks the message read
                 else if (from == Screen.CONTACTS_HOME || from == Screen.CALLLOG_HOME) selectCurrent();
                 else if (from == Screen.LIST) selectListItem();
                 else if (from == Screen.INTERVALTIMER) notice = "Open selected"; // sim generic notice
