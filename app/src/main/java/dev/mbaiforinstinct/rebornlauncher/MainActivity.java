@@ -68,8 +68,7 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
     // Real-call tracking: telephony state drives the C2 incall screen.
     // Registered once READ_PHONE_STATE is granted; additive only.
     private TelephonyManager telephonyManager;
-    private PhoneStateListener legacyCallListener;
-    private Object modernCallCallback;
+    private PhoneStateListener callStateListener;
     private boolean callStateRegistered = false;
     private boolean callUiActive = false;
     private String lastDialNumber;
@@ -169,13 +168,9 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
         if (smsObserver != null) getContentResolver().unregisterContentObserver(smsObserver);
         if (callLogObserver != null) getContentResolver().unregisterContentObserver(callLogObserver);
         if (contactsObserver != null) getContentResolver().unregisterContentObserver(contactsObserver);
-        if (callStateRegistered && telephonyManager != null) {
+        if (callStateRegistered && telephonyManager != null && callStateListener != null) {
             try {
-                if (Build.VERSION.SDK_INT >= 31 && modernCallCallback != null) {
-                    telephonyManager.unregisterTelephonyCallback((android.telephony.TelephonyCallback) modernCallCallback);
-                } else if (legacyCallListener != null) {
-                    telephonyManager.listen(legacyCallListener, PhoneStateListener.LISTEN_NONE);
-                }
+                telephonyManager.listen(callStateListener, PhoneStateListener.LISTEN_NONE);
             } catch (Exception ignored) { }
         }
         bg.shutdownNow();
@@ -268,22 +263,15 @@ public class MainActivity extends Activity implements NokiaUi.Actions {
         try {
             telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
             if (telephonyManager == null) return;
-            if (Build.VERSION.SDK_INT >= 31) {
-                final android.telephony.TelephonyCallback callback = new android.telephony.TelephonyCallback() {
-                    @Override public void onCallStateChanged(int state) {
-                        handleCallState(state, null);
-                    }
-                };
-                modernCallCallback = callback;
-                telephonyManager.registerTelephonyCallback(getMainExecutor(), callback);
-            } else {
-                legacyCallListener = new PhoneStateListener() {
-                    @Override public void onCallStateChanged(int state, String phoneNumber) {
-                        handleCallState(state, phoneNumber);
-                    }
-                };
-                telephonyManager.listen(legacyCallListener, PhoneStateListener.LISTEN_CALL_STATE);
-            }
+            // PhoneStateListener is deprecated on API 31+ but still the
+            // only non-dialer way to see the incoming number, and it works
+            // on every level the app runs on.
+            callStateListener = new PhoneStateListener() {
+                @Override public void onCallStateChanged(int state, String phoneNumber) {
+                    handleCallState(state, phoneNumber);
+                }
+            };
+            telephonyManager.listen(callStateListener, PhoneStateListener.LISTEN_CALL_STATE);
             callStateRegistered = true;
         } catch (Exception ignored) {
             // Call-state tracking is additive; never let it block launch.
