@@ -23,11 +23,15 @@ import dev.mbaiforinstinct.rebornlauncher.text.Multitap;
 public class NokiaUi extends View {
 
     public enum Screen {
-        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, CALMONTH, CALOPEN, INSERTWORD, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS, USEDETAILNUM, LOADINGNOTE, SCIENTIFIC, LOANINTRO, LOANCALC
+        IDLE, MENU, GOTO, LIST, THREADS, CONVERSATION, READ, COMPOSE_NUMBER, ADD_CONTACT, COMPOSE_TEXT, DIALER, CALLLOG, CONTACTS, CONTACT_CARD, CONTACTS_HOME, CALLLOG_HOME, OPTIONS, PROFILES, CONFIRM_DEL, ALARM, ALARM_EDIT, CALC, CAMERA, ITEMDETAIL, VIDEOREC, BROWSER, URLENTRY, APPDOWNLOADS, PLAYER, MUSICLIB, ALLSONGS, LIBLIST, EQUALISER, RADIO, VOICEREC, MAPS, STOPWATCH, SWTIMES, MEMSTATUS, MEMCARD, FOLDERNAME, CALTYPES, CALNOTE, CALVIEW, CALMONTH, CALOPEN, INSERTWORD, TODOEDIT, TEXTNOTE, NOTEVIEW, NORMALTIMER, TIMERNOTE, INTERVALTIMER, CDSETTINGS, USEDETAILNUM, LOADINGNOTE, SCIENTIFIC, LOANINTRO, LOANCALC, INCALL
     }
 
     public interface Actions {
         void dial(String number);
+        // Real-call controls; defaults keep older implementations compiling.
+        default boolean endCall() { return false; }
+        default void setSpeakerphone(boolean on) { }
+        default void setMicMute(boolean mute) { }
         void openRoute(String section, String item);
         List<PhoneStore.Sms> sms();
         List<String[]> callLog();
@@ -66,6 +70,64 @@ public class NokiaUi extends View {
     private Screen screen = Screen.IDLE;
     private boolean locked = false;
     private boolean unlockPending = false;
+
+    // Real-call state, fed by MainActivity's telephony listener. The incall
+    // screen mirrors the HTML: contact name (or number), a ticking timer,
+    // and the Loudsp./Handset right key. Hold has no platform API without
+    // the default-phone role, so the Hold option reports that honestly.
+    private String callNumber = "";
+    private String callName = null;
+    private long callStartMs = 0;
+    private boolean callActive = false;
+    private boolean callMuted = false;
+    private boolean callLoud = false;
+    private boolean incallBackToCall = false;
+
+    private final Runnable callTick = new Runnable() {
+        @Override public void run() {
+            if (screen == Screen.INCALL && callActive) {
+                invalidate();
+                handler.postDelayed(this, 1000);
+            }
+        }
+    };
+
+    // MainActivity reports a call going active (outgoing or answered).
+    public void callStarted(String number) {
+        callActive = true;
+        callNumber = number == null ? "" : number;
+        callName = null;
+        if (!callNumber.isEmpty()) {
+            for (String[] contact : actions.contacts()) {
+                if (contact.length > 1 && callNumber.equals(contact[1])) { callName = contact[0]; break; }
+            }
+        }
+        callStartMs = System.currentTimeMillis();
+        callMuted = false;
+        callLoud = false;
+        incallBackToCall = false;
+        screen = Screen.INCALL;
+        row = 0;
+        handler.removeCallbacks(callTick);
+        handler.postDelayed(callTick, 1000);
+        invalidate();
+    }
+
+    // MainActivity reports the call ended: the HTML shows 'Call ended' and
+    // returns to the idle page when the incall screen was showing.
+    public void callEnded() {
+        if (!callActive) return;
+        callActive = false;
+        callMuted = false;
+        callLoud = false;
+        handler.removeCallbacks(callTick);
+        if (screen == Screen.INCALL) {
+            screen = Screen.IDLE;
+            row = 0;
+        }
+        notice = "Call ended"; // HTML endCall notice, verbatim
+        invalidate();
+    }
 
     // Sim v4.89 screens.menu order.
     private static final String[] MENU_ITEMS = {
@@ -530,6 +592,7 @@ public class NokiaUi extends View {
         drawStatus(c, w);
         switch (screen) {
             case IDLE: drawIdle(c, w, h); break;
+            case INCALL: drawInCall(c, w, h); break;
             case MENU: drawMenu(c, w, h); break;
             case GOTO: drawGoto(c, w, h); break;
             case LIST: drawList(c, w, h); break;
@@ -815,6 +878,13 @@ public class NokiaUi extends View {
         }
         notice = null; // any fresh key press clears a shown notice
         if (keyCode == KeyEvent.KEYCODE_ENDCALL) {
+            if (screen == Screen.INCALL) {
+                // The red key ends the real call; the telephony callback
+                // closes the screen when the call state goes idle.
+                if (!actions.endCall()) notice = "Allow the phone permission to end calls";
+                invalidate();
+                return true;
+            }
             composeTap.commit();
             if ((screen == Screen.COMPOSE_NUMBER || screen == Screen.COMPOSE_TEXT)
                     && (composeNumber.length() > 0 || composeTap.text().length() > 0)) {
@@ -863,6 +933,18 @@ public class NokiaUi extends View {
             row = 0;
             screen = Screen.CONTACTS;
             invalidate();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT && screen == Screen.INCALL) {
+            // HTML incall right softkey toggles the loudspeaker.
+            callLoud = !callLoud;
+            actions.setSpeakerphone(callLoud);
+            notice = "Loudspeaker " + (callLoud ? "on" : "off");
+            invalidate();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_BACK && screen == Screen.INCALL) {
+            // The HTML incall page has no Back action.
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
@@ -1087,6 +1169,9 @@ public class NokiaUi extends View {
                     screen = Screen.IDLE;
                 }
                 break;
+            case INCALL:
+                // HTML: the green key during a call is a no-op.
+                break;
             default:
                 screen = Screen.DIALER;
                 dialNumber.setLength(0);
@@ -1139,6 +1224,15 @@ public class NokiaUi extends View {
     }
 
     private void back() {
+        // Sim call flow: pages opened from the incall screen (Contacts,
+        // Main menu) return to it on Back while the call is still active.
+        if (incallBackToCall && (screen == Screen.CONTACTS || screen == Screen.MENU)) {
+            incallBackToCall = false;
+            if (callActive) {
+                screen = Screen.INCALL;
+                return;
+            }
+        }
         if (openingConvo) { // sim: Back on the opening interstitial cancels it, stays on conversations
             openingConvo = false;
             openingConvoAddress = null;
@@ -1531,6 +1625,12 @@ public class NokiaUi extends View {
                 break;
             case IDLE:
                 screen = Screen.MENU; // sim: the menu reopens at lastMenuSel
+                row = 0;
+                break;
+            case INCALL:
+                // HTML incall centre softkey is 'Menu': the main menu opens.
+                incallBackToCall = true;
+                screen = Screen.MENU;
                 row = 0;
                 break;
             case MENU:
@@ -2300,6 +2400,57 @@ public class NokiaUi extends View {
     private float screenH(int h) { return softTop(h) - statusH(h); }
 
     // Sim v4.89: app screens are BLACK with the grey swoosh wallpaper, not flat #252728.
+    private void drawInCall(Canvas c, int w, int h) {
+        // HTML incall page: a small grey NOKIA tag, then a light rounded box
+        // mid-screen (gradient #eee->#aaa, 1px #777 border) holding the green
+        // phone glyph, the contact name or number, and the timer. The HTML's
+        // hold/mute state line is display:none, so it is not drawn.
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        float pad = w * 0.033f;
+        p.setColor(0xFF888888);
+        p.setTextSize(w * 0.056f);
+        c.drawText("NOKIA", pad, pad + w * 0.045f, p);
+
+        float boxT = h * 0.40f;
+        float boxPad = w * 0.058f;
+        float nameSize = w * 0.083f;
+        float timerSize = w * 0.046f;
+        p.setTextSize(nameSize);
+        Paint.FontMetrics fm = p.getFontMetrics();
+        float line1 = fm.descent - fm.ascent;
+        float line2 = timerSize * 1.9f;
+        android.graphics.RectF box = new android.graphics.RectF(
+                pad, boxT, w - pad, boxT + boxPad * 2 + line1 + line2);
+        float rad = w * 0.021f;
+        Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fill.setShader(new android.graphics.LinearGradient(
+                0, box.top, 0, box.bottom, 0xFFEEEEEE, 0xFFAAAAAA,
+                android.graphics.Shader.TileMode.CLAMP));
+        c.drawRoundRect(box, rad, rad, fill);
+        Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
+        border.setStyle(Paint.Style.STROKE);
+        border.setStrokeWidth(Math.max(1f, w * 0.004f));
+        border.setColor(0xFF777777);
+        c.drawRoundRect(box, rad, rad, border);
+
+        String who = (callName != null && !callName.isEmpty())
+                ? callName
+                : (callNumber.isEmpty() ? "Unknown number" : callNumber);
+        long secs = Math.max(0, (System.currentTimeMillis() - callStartMs) / 1000);
+        String time = String.format(Locale.US, "%02d:%02d", secs / 60, secs % 60);
+
+        float ty = box.top + boxPad - fm.ascent;
+        p.setFakeBoldText(true);
+        p.setColor(0xFF00BB33); // HTML glyph colour #0b3
+        c.drawText("\u260E ", box.left + boxPad, ty, p);
+        float glyphW = p.measureText("\u260E ");
+        p.setColor(0xFF111111);
+        c.drawText(who, box.left + boxPad + glyphW, ty, p);
+        p.setFakeBoldText(false);
+        p.setTextSize(timerSize);
+        c.drawText(time, box.right - boxPad - p.measureText(time), ty + line2, p);
+    }
+
     private void drawScreenBackground(Canvas c, int w, int h) {
         p.setStyle(Paint.Style.FILL);
         p.setColor(Color.BLACK);
@@ -5725,6 +5876,48 @@ public class NokiaUi extends View {
         Screen from = optionsFrom;
         screen = from;
         switch (item) {
+            // HTML opts.incall actions. Loudspeaker and Mute drive the real
+            // audio path; Hold needs the default-phone role (reported
+            // honestly, never faked); End call ends the real call.
+            case "Loudspeaker":
+                if (from == Screen.INCALL) {
+                    callLoud = !callLoud;
+                    actions.setSpeakerphone(callLoud);
+                    notice = "Loudspeaker " + (callLoud ? "on" : "off"); // HTML verbatim
+                }
+                break;
+            case "Mute":
+                if (from == Screen.INCALL) {
+                    callMuted = !callMuted;
+                    actions.setMicMute(callMuted);
+                    notice = callMuted ? "Muted" : "Unmuted"; // HTML verbatim
+                }
+                break;
+            case "Hold":
+                if (from == Screen.INCALL) {
+                    // The HTML freezes the timer and holds the call; Android
+                    // only lets the default phone app hold a call.
+                    notice = "Hold needs Reborn set as the phone app";
+                }
+                break;
+            case "Contacts":
+                if (from == Screen.INCALL) {
+                    // HTML incall Contacts goes to the names page.
+                    rows = actions.contacts();
+                    row = 0;
+                    incallBackToCall = true;
+                    screen = Screen.CONTACTS;
+                }
+                break;
+            case "Main menu":
+                if (from == Screen.INCALL) {
+                    incallBackToCall = true;
+                    screen = Screen.MENU;
+                }
+                break;
+            case "End call":
+                if (from == Screen.INCALL) actions.endCall();
+                break;
             case "Open": case "View":
                 if (from == Screen.LIST && (listSection == 58 || listSection == 62)) { notice = "Open selected"; break; } // sim generic option fallback notice
                 if (from == Screen.ALARM) alarmChange();
@@ -6496,6 +6689,7 @@ public class NokiaUi extends View {
             case ADD_CONTACT: return new String[]{"Open", "Details", "Help"}; // sim's generic fallback
             case COMPOSE_NUMBER: return new String[]{"Send", "Preview", "Insert", "Add recipient >", "Add subject", "Clear field", "Insert contact detail", "Insert symbol", "Editing options >", "Writing language >", "Prediction options >", "Change to multim.", "Save message >", "Sending options >", "Exit editor"};
             case DIALER: return new String[]{"Call", "Save", "Send message", "Add to contact"};
+            case INCALL: return new String[]{"Loudspeaker", "Mute", "Hold", "Contacts", "Main menu", "End call"}; // HTML opts.incall, verbatim
             case MENU: return new String[]{"Main menu view", "Organise", "Help"};
             case GOTO: return new String[]{"Select", "Organise", "Help"};
             case PROFILES: return new String[]{"Activate", "Personalise", "Timed"};
@@ -6596,6 +6790,7 @@ public class NokiaUi extends View {
         if (deleteNotesConfirm > 0) return new String[]{"", "Yes", "No"};
         switch (screen) {
             case IDLE: return locked ? new String[]{"Unlock", "", ""} : new String[]{"Go to", "Menu", "Names"};
+            case INCALL: return new String[]{"Options", "Menu", callLoud ? "Handset" : "Loudsp."}; // HTML incall soft keys
             case OPTIONS: return new String[]{"", "Select", "Back"};
             case MENU: return new String[]{"Options", "Select", "Exit"};
             case GOTO: return new String[]{"Options", "Select", "Back"};
