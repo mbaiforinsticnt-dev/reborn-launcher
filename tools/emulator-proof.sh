@@ -1002,5 +1002,46 @@ tap_key LSK; sleep 1
 tap_key STAR; sleep 2; shot 107-unlocked
 tap_key END; sleep 1
 
+# (188) Settings-family parity shots (accepted HTML): Message settings 4 plain
+# rows, General settings srows + favourites link, save-sent notice, text/service
+# settings srows, service-toggle notice, profiles plain rows.
+tap_key CENTER; sleep 2                     # menu
+tap_key RIGHT; sleep 1
+tap_key DOWN; sleep 1
+tap_key CENTER; sleep 2                     # messaging list
+tap_key UP; sleep 1                         # wrap to last row: Message settings
+tap_key CENTER; sleep 2; shot 108-msgsettings
+tap_key CENTER; sleep 2; shot 109-generalmsg
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1                       # Favourite recipient row
+tap_key CENTER; sleep 2; shot 110-favourites
+tap_key LSK; sleep 2; shot 111-favmenu
+tap_key RSK; sleep 1                        # close menu
+tap_key RSK; sleep 1                        # back to General settings
+tap_key UP; sleep 1
+tap_key UP; sleep 1                         # back to Save sent messages row
+tap_key RIGHT; sleep 1                      # cycle Yes -> No (dirty)
+shot 112-generalmsg-dirty
+tap_key CENTER; sleep 2; shot 113-savesent-notice
+tap_key RSK; sleep 1                        # consume the notice
+tap_key RSK; sleep 1                        # back to Message settings
+tap_key DOWN; sleep 1                       # Text messages
+tap_key CENTER; sleep 2; shot 114-textmsg
+tap_key RSK; sleep 1
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1                       # Service messages (row 3)
+tap_key CENTER; sleep 2; shot 115-servicemsg
+tap_key CENTER; sleep 2; shot 116-svc-notice
+tap_key END; sleep 1
+# (189) Profiles: plain 30px rows, no icons (HTML plainPage).
+tap_key CENTER; sleep 2                     # menu
+tap_key DOWN; sleep 1
+tap_key DOWN; sleep 1
+tap_key RIGHT; sleep 1                      # settings (grid index 7)
+tap_key CENTER; sleep 2                     # settings list, row 0 = Profiles
+tap_key CENTER; sleep 2; shot 117-profiles
+tap_key END; sleep 1
+
 cp "$PROOF_LOG" "$SCREEN_DIR/proof-log.txt"
 echo "proof complete"
