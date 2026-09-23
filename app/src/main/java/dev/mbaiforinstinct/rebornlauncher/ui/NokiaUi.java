@@ -55,7 +55,7 @@ public class NokiaUi extends View {
     }
 
     // Sim v4.89 settings pages: live values, base snapshot on entry, dirty tracking.
-    private final String[] generalSettings = {"Yes", "Not allowed", "(not defined)", "Normal font", "Yes"};
+    private final String[] generalSettings = {"Yes", "Conversation view", "(not defined)", "Normal font", "Yes"};
     private String[] generalBase; private boolean generalDirty;
     private final String[] textSettings = {"No", "", "SIM msg centre 1", "Maximum time", "Text", "No", "Full", "No"};
     private String[] textBase; private boolean textDirty;
@@ -64,6 +64,13 @@ public class NokiaUi extends View {
     private final String[] emailSettings = {"On", "In home network", "Yes", "1600x1200", "No mailboxes"};
     private String[] emailBase; private boolean emailDirty;
     private final String[] serviceSettings = {"On", "On", "On"};
+    // Sim favourites flow (generalmsg 'Favourite recipient' -> the Favourites page).
+    private final java.util.List<String[]> favourites = new java.util.ArrayList<>(java.util.Collections.singletonList(new String[]{"Alex Morgan", "+44 7700 900123"})); // sim phoneState.favourites seed
+    private boolean favMenuOpen = false; private int favMenuSel = 0; // sim favMenuOpen/favMenuSel
+    private int favReplaceIdx = -1; private String favPending = null; private String favMode = "add"; // sim favReplaceIdx/favPending/favMode
+    private String favDelName = null; private int favDelIdx = -1; // sim favDelName/favDelIdx
+    private int favFormSection = 63; // which picker opened the contact form (favadd/favreplace)
+    private boolean genSaveSentTouched = false; // sim genSaveSentTouched
 
     private final Actions actions;
     private final Handler handler = new Handler();
@@ -355,8 +362,8 @@ public class NokiaUi extends View {
             {"Info service", "Topics", "Language", "Info topics on SIM"},
             {"Editing options >"},
             {"By message", "By folder", "All messages"},
-            {"General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages"},
-            {"Save sent messages", "Overwrite sent items", "Favourite recipient", "Font size", "Graphical smileys"},
+            {"General settings", "Text messages", "Multimedia messages", "Service messages"},
+            {"Save sent messages", "Change msg. view", "Favourite recipient", "Font size", "Graphical smileys"},
             {"Delivery reports", "Message centres", "Msg. centre in use", "Message validity", "Messages sent via", "Use packet data", "Character support", "Rep. via same centre"},
             {"Request reports", "Allow read report", "MMS creation mode", "Image size in MMS", "Default slide timing", "MMS reception", "Allow adverts", "Configuration sett. >"},
             {"New e-mail notif.", "Allow mail reception", "Reply with orig. msg.", "Image size in e-mail", "Edit mailboxes"},
@@ -393,9 +400,13 @@ public class NokiaUi extends View {
             {"Sent text messages", "Sent MMS msgs.", "Sent e-mails", "Received text msgs."}, // 59 sim messagelog counters
             {}, // 60 sim folderdetails (custom form draw)
             {}, // 61 sim inbox (live message window)
-            {} // 62 msgdetails - drawn dynamically by drawList/detailsRows
+            {}, // 62 msgdetails - drawn dynamically by drawList/detailsRows
+            {"Contacts", "Contact groups", "New number", "New e-mail addr."}, // 63 sim favadd
+            {"Contacts", "Contact groups", "New number", "New e-mail addr."}, // 64 sim favreplace
+            {}, // 65 favpick - dynamic contacts, drawn by drawList
+            {} // 66 favgroups - dynamic groups, drawn by drawList
     };
-    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone", "Calendar", "To-do list", "Notes", "Countdown", "Editing options", "Writing language", "Prediction options", "Use detail", "Send note", "Favourites", "Message centres", "Msg. centre in use", "Configuration sett.", "E-mail mailboxes", "Message centre", "Accounts", "Inbox view", "SIM messages", "Message log", "Folder details", "Inbox", "Message details"};
+    private static final String[] LIST_TITLES = {"Messaging", "Organiser", "Synchronise all", "Contact settings", "Groups", "Speed dials", "Service numbers", "Delete all contacts", "Call duration", "Packet data counter", "Packet data timer", "Drafts", "Outbox", "Sent items", "Saved items", "Templates", "Saved messages", "Delivery reports", "E-mail", "IMs", "Voice messages", "Info messages", "Serv. commands", "Delete messages", "Message settings", "General settings", "Text messages", "Multimedia messages", "E-mail messages", "Service messages", "Media", "Apps", "Add recipient", "Create message", "Flash message", "Audio message", "My folders", "Settings", "Gallery", "Web", "Phone", "Calendar", "To-do list", "Notes", "Countdown", "Editing options", "Writing language", "Prediction options", "Use detail", "Send note", "Favourites", "Message centres", "Msg. centre in use", "Configuration sett.", "E-mail mailboxes", "Message centre", "Accounts", "Inbox view", "SIM messages", "Message log", "Folder details", "Inbox", "Message details", "Add favourite", "Replace favourite", "Contacts", "Contact groups"};
 
     private static final String[] CALTYPE_ROWS = {"Reminder", "Meeting", "Call", "Birthday", "Anniversary", "Memo"};
 
@@ -724,6 +735,8 @@ public class NokiaUi extends View {
                 break;
         }
         if (locked) drawLockOverlay(c, w, h);
+        if (favMenuOpen) drawOptionsFlyout(c, w, h, new String[]{"Add", "Replace", "Delete"}, favMenuSel); // sim optionsPanel.float
+        if (favDelName != null) drawFavDel(c, w, h);
         if (notice != null) drawNotice(c, w, h);
         if (composeExitConfirm) drawMailboxDialog(c, w, h, "Save message?");
         if (symbolFlyout) { // Sim: 2-row optionsPanel flyout
@@ -934,7 +947,38 @@ public class NokiaUi extends View {
             invalidate();
             return true;
         }
-        notice = null; // any fresh key press clears a shown notice
+        if (notice != null) { // HTML press(): a key while a notice is up only dismisses it (consumed)
+            notice = null;
+            invalidate();
+            return true;
+        }
+        if (favMenuOpen) { // sim favourites Add/Replace/Delete menu
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP) { favMenuSel = (favMenuSel + 2) % 3; invalidate(); return true; }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { favMenuSel = (favMenuSel + 1) % 3; invalidate(); return true; }
+            if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) { favMenuOpen = false; invalidate(); return true; }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_SOFT_LEFT) {
+                int pick = favMenuSel;
+                favMenuOpen = false;
+                if (pick == 0) { favMode = "add"; openListSection(63); } // Add -> favadd
+                else if (pick == 1) { favMode = "replace"; favReplaceIdx = row; openListSection(64); } // Replace -> favreplace
+                else { favDelIdx = row; favDelName = favourites.get(row)[0]; } // Delete -> the confirm dialog
+                invalidate();
+                return true;
+            }
+            invalidate();
+            return true;
+        }
+        if (favDelName != null) { // sim favourites delete confirm: LSK/OK = Yes, RSK = No
+            if (keyCode == KeyEvent.KEYCODE_SOFT_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                favourites.remove(favDelIdx);
+                favDelName = null;
+                row = Math.max(0, favDelIdx - 1); // sim sel=Math.max(0,favDelIdx-1)
+            } else if (keyCode == KeyEvent.KEYCODE_SOFT_RIGHT || keyCode == KeyEvent.KEYCODE_BACK) {
+                favDelName = null;
+            }
+            invalidate();
+            return true;
+        }
         if (keyCode == KeyEvent.KEYCODE_ENDCALL) {
             if (screen == Screen.INCALL) {
                 // The red key ends the real call; the telephony callback
@@ -976,6 +1020,10 @@ public class NokiaUi extends View {
                 screen = Screen.TEXTNOTE;
             } else if (screen == Screen.CALNOTE && calNoteField().equals("alarmtime")) {
                 // HTML: the alarm-time field blanks the left softkey.
+            } else if (screen == Screen.LIST && listSection == 50) {
+                // HTML favourites page: 'Options' with rows (the Add/Replace/Delete menu), 'Add' when empty.
+                if (favourites.isEmpty()) { favMode = "add"; openListSection(63); }
+                else { favMenuOpen = true; favMenuSel = 0; }
             } else if (optionsItemsFor(screen).length > 0) {
                 openOptions();
             } else if (screen == Screen.LIST) {
@@ -1499,6 +1547,11 @@ public class NokiaUi extends View {
                     // Sim right key: Clear the active field first, Back only when empty.
                     if (contactField == 0) { handler.removeCallbacks(commitTick); nameTap.clear(); }
                     else contactNumber.setLength(0);
+                } else if (favPending != null) { // sim: back from the favourites form returns to the picker
+                    favPending = null;
+                    screen = Screen.LIST;
+                    listSection = favFormSection;
+                    row = 0;
                 } else { screen = Screen.CONTACTS_HOME; row = 0; }
                 break;
             case CALLLOG: screen = Screen.CALLLOG_HOME; row = 0; break;
@@ -1584,7 +1637,7 @@ public class NokiaUi extends View {
     private void cycleSetting(int section, int i, int dir) {
         String[] vals; String[][] sets;
         switch (section) {
-            case 25: vals = generalSettings; sets = new String[][]{{"Yes", "No"}, {"Not allowed", "Allowed"}, null, {"Normal font", "Large font", "Small font"}, {"Yes", "No"}}; break;
+            case 25: vals = generalSettings; sets = new String[][]{{"Yes", "No"}, {"Conversation view", "Inbox view"}, null, {"Normal font", "Large font", "Small font"}, {"Yes", "No"}}; break; // HTML cycleGeneralSetting sets
             case 26: vals = textSettings; sets = new String[][]{{"No", "Yes"}, null, null, {"Maximum time", "1 hour", "6 hours", "24 hours", "3 days", "1 week"}, {"Text", "Paging", "Fax"}, {"No", "Yes"}, {"Full", "Reduced"}, {"No", "Yes"}}; break;
             case 27: vals = mmsSettings; sets = new String[][]{{"No", "Yes", "No"}, {"No", "Yes"}, {"Guided", "Free", "Restricted"}, {"1600x1200", "1280x960", "640x480", "320x240", "160x120", "Original"}, null, {"Auto. in home nw.", "Manual", "Off", "Automatic"}, {"No", "Yes"}, null}; break;
             case 28: vals = emailSettings; sets = new String[][]{{"On", "Off"}, {"In home network", "Always"}, {"Yes", "No"}, {"1600x1200", "1280x960", "640x480", "320x240", "160x120", "Original"}, null}; break;
@@ -1598,7 +1651,7 @@ public class NokiaUi extends View {
         String[] a = sets[i];
         int n = java.util.Arrays.asList(a).indexOf(vals[i]);
         vals[i] = a[(n + (dir > 0 ? 1 : a.length - 1)) % a.length];
-        if (section == 25) generalDirty = true; else if (section == 26) textDirty = true;
+        if (section == 25) { generalDirty = true; if (i == 0) genSaveSentTouched = true; } else if (section == 26) textDirty = true; // sim genSaveSentTouched
         else if (section == 27) mmsDirty = true; else emailDirty = true;
         invalidate();
     }
@@ -1661,6 +1714,9 @@ public class NokiaUi extends View {
                 if (listSection == 42) return Math.max(todoNotes.size(), 1);
                 if (listSection == 43) return noteTexts.size();
                 if (listSection == 61) return threads.size(); // sim inbox: the flat message list
+                if (listSection == 50) return Math.max(1, favourites.size()); // '(No favourites)' row when empty
+                if (listSection == 65) return Math.max(1, favPickRows().size()); // '(empty)' row when no contacts
+                if (listSection == 66) return LIST_ITEMS[4].length; // the Groups list
                 return LIST_ITEMS[listSection].length;
             case CALVIEW: return calNotesOnDay().size();
             case CALOPEN: return 1;
@@ -1974,6 +2030,23 @@ public class NokiaUi extends View {
                     editingContact = false;
                     screen = Screen.CONTACT_CARD; // sim saveContact(): go('contact')
                     row = 0;
+                } else if (favPending != null) {
+                    // Sim favourites flow: the form feeds the favourites list, then the Favourites page.
+                    String mode = favPending;
+                    favPending = null;
+                    String[] e = {nameTap.text(), contactNumber.toString()};
+                    if ("replace".equals(mode) && favReplaceIdx >= 0 && favReplaceIdx < favourites.size()) {
+                        favourites.set(favReplaceIdx, e);
+                        row = favReplaceIdx;
+                    } else {
+                        boolean dup = false;
+                        for (String[] f : favourites) if (f[0].equals(e[0]) && f[1].equals(e[1])) { dup = true; break; }
+                        if (!dup) favourites.add(e);
+                        row = favourites.size() - 1;
+                    }
+                    favReplaceIdx = -1;
+                    screen = Screen.LIST;
+                    listSection = 50;
                 } else {
                     if (actions.addContact(nameTap.text(), contactNumber.toString())) {
                         rows = actions.contacts();
@@ -2229,7 +2302,7 @@ public class NokiaUi extends View {
 
     private void selectListItem() {
         if (listSection >= 25 && listSection <= 29) { // Sim settings pages: OK saves dirty edits, else special routes or no-op
-            if (listSection == 25 && generalDirty) { generalDirty = false; generalBase = null; return; }
+            if (listSection == 25 && generalDirty) { generalDirty = false; generalBase = null; if (genSaveSentTouched) { genSaveSentTouched = false; notice = "'Save sent messages' setting changed"; } return; } // HTML save-sent notice, verbatim
             if (listSection == 26 && textDirty) { textDirty = false; textBase = null; return; }
             if (listSection == 27 && mmsDirty) { mmsDirty = false; mmsBase = null; return; }
             if (listSection == 28 && emailDirty) { emailDirty = false; emailBase = null; return; }
@@ -2247,6 +2320,31 @@ public class NokiaUi extends View {
         }
         if (listSection == 53 && row == 1) { // Sim mmsconfig row 1 -> accounts
             openListSection(56);
+            return;
+        }
+        if (listSection == 50) { // HTML: OK on the favourites page opens the Add/Replace/Delete menu
+            if (!favourites.isEmpty()) { favMenuOpen = true; favMenuSel = 0; invalidate(); }
+            return;
+        }
+        if (listSection == 63 || listSection == 64) { // sim favadd/favreplace OK
+            favMode = listSection == 64 ? "replace" : "add";
+            if (row == 0) { openListSection(65); return; } // Contacts -> favpick
+            if (row == 1) { openListSection(66); return; } // Contact groups -> favgroups
+            favPending = favMode; favFormSection = listSection; // New number / New e-mail addr.: the shared form feeds favourites on save
+            nameTap.clear();
+            contactNumber.setLength(0);
+            contactField = 0;
+            editingContact = false;
+            screen = Screen.ADD_CONTACT;
+            return;
+        }
+        if (listSection == 65) { // sim favpick OK: apply the picked contact
+            java.util.List<String[]> cnt = favPickRows();
+            if (!cnt.isEmpty() && row < cnt.size()) favApply(cnt.get(row)[0], cnt.get(row).length > 1 ? cnt.get(row)[1] : "");
+            return;
+        }
+        if (listSection == 66) { // sim favgroups OK: apply the picked group
+            if (row < LIST_ITEMS[4].length) favApply(LIST_ITEMS[4][row], "");
             return;
         }
         if (listSection >= 50 && listSection <= 54) { // Sim's leaf pages route via the generic details path
@@ -2344,8 +2442,8 @@ public class NokiaUi extends View {
             }
             return;
         }
-        if (listSection == 24) { // Message settings -> the five settings pages
-            openListSection(25 + row);
+        if (listSection == 24) { // HTML: four settings pages (no E-mail row); row 3 is Service messages
+            openListSection(row == 3 ? 29 : 25 + row);
             return;
         }
         if (listSection == 30 && row == 0) { // sim media row 0 opens the camera page
@@ -2798,6 +2896,140 @@ public class NokiaUi extends View {
         return genericRowIcon;
     }
 
+    // HTML .row.plain: fixed 30px text-only rows, no icons, top-aligned, 5-row window.
+    private void drawPlainRows(Canvas c, int w, int h, String[] items) {
+        float u = w / 240f;
+        float listTop = statusH(h) + titleH(h);
+        float rowH = 30 * u; // HTML .row.plain height 30px
+        int count = items.length;
+        int visible = Math.min(count, 5); // HTML rows() visible window
+        int start = Math.max(0, Math.min(row - (visible - 1), count - visible));
+        float padX = w * 0.035f;
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        p.setTextAlign(Paint.Align.LEFT);
+        for (int j = 0; j < Math.min(visible, count - start); j++) {
+            int i = start + j;
+            float top = listTop + j * rowH;
+            if (i == row) drawSelPill(c, w, top, rowH);
+            p.setColor(Color.WHITE);
+            p.setTextSize(20 * u); // HTML .row font-size 20px
+            c.drawText(ellipsize(items[i], w - 2 * padX, p), padX, top + rowH / 2f + p.getTextSize() * 0.36f, p);
+        }
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // HTML srows(): five rows at 20% of the list area; label on the first line,
+    // value centred on the second, bracketed when the selection cycles (not on
+    // generalmsg row 2, the Favourite recipient link).
+    private void drawSettingsRows(Canvas c, int w, int h, String[] items, String[] vals) {
+        float listTop = statusH(h) + titleH(h);
+        float rowH = (softTop(h) - listTop) / 5f;
+        int start = Math.max(0, Math.min(row - 4, Math.max(items.length - 5, 0)));
+        float padX = w * 0.035f;
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        for (int j = 0; j < Math.min(5, items.length - start); j++) {
+            int i = start + j;
+            float top = listTop + j * rowH;
+            boolean sel = i == row;
+            if (sel) drawSelPill(c, w, top, rowH);
+            String v = (listSection == 25 && i == 2) ? (favourites.isEmpty() ? "(not defined)" : "Favourites") : vals[i]; // HTML favRowVal()
+            p.setTextAlign(Paint.Align.LEFT);
+            p.setColor(Color.WHITE);
+            p.setTextSize(w * (20f / 240f)); // HTML .row font-size 20px
+            c.drawText(ellipsize(items[i], w - 2 * padX, p), padX, top + rowH * 0.42f, p);
+            if (v != null && !v.isEmpty()) {
+                p.setTextAlign(Paint.Align.CENTER);
+                String disp = (sel && !(listSection == 25 && i == 2)) ? "\u2039 " + v + " \u203a" : v; // sim srows brackets
+                c.drawText(disp, w * 0.5f, top + rowH * 0.84f, p);
+                p.setTextAlign(Paint.Align.LEFT);
+            }
+        }
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // HTML favRows(): name bold on the first line, number smaller at 80% opacity below.
+    private void drawFavRows(Canvas c, int w, int h) {
+        float listTop = statusH(h) + titleH(h);
+        float rowH = (softTop(h) - listTop) / 5f;
+        int n = favourites.size();
+        int start = Math.max(0, Math.min(row - 4, Math.max(n - 5, 0)));
+        float padX = w * 0.035f;
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+        for (int j = 0; j < Math.min(5, n - start); j++) {
+            int i = start + j;
+            float top = listTop + j * rowH;
+            if (i == row) drawSelPill(c, w, top, rowH);
+            p.setTextAlign(Paint.Align.LEFT);
+            p.setColor(Color.WHITE);
+            p.setFakeBoldText(true);
+            p.setTextSize(w * (20f / 240f));
+            c.drawText(ellipsize(favourites.get(i)[0], w - 2 * padX, p), padX, top + rowH * 0.42f, p);
+            p.setFakeBoldText(false);
+            p.setTextSize(0.015f * screenH(h)); // HTML 1.5vh
+            p.setColor(Color.argb(204, 255, 255, 255)); // HTML opacity .8
+            String num = favourites.get(i)[1];
+            c.drawText(num.isEmpty() ? "(Contact group)" : num, padX, top + rowH * 0.84f, p);
+        }
+        p.setTypeface(Typeface.DEFAULT);
+    }
+
+    // Sim favPickList(): contacts sorted by name (a copy; the store list is unsorted).
+    private java.util.List<String[]> favPickRows() {
+        java.util.List<String[]> l = new java.util.ArrayList<>(actions.contacts());
+        java.util.Collections.sort(l, (a, b) -> {
+            String an = a.length > 0 && a[0] != null ? a[0] : "";
+            String bn = b.length > 0 && b[0] != null ? b[0] : "";
+            return an.compareToIgnoreCase(bn);
+        });
+        return l;
+    }
+
+    private String[] favPickNames() {
+        java.util.List<String[]> l = favPickRows();
+        if (l.isEmpty()) return new String[]{"(empty)"};
+        String[] n = new String[l.size()];
+        for (int i = 0; i < n.length; i++) n[i] = l.get(i)[0];
+        return n;
+    }
+
+    // Sim favApply(): add (dedup by name+number) or replace, then the Favourites page.
+    private void favApply(String name, String number) {
+        String[] e = {name, number == null ? "" : number};
+        int target;
+        if ("replace".equals(favMode) && favReplaceIdx >= 0 && favReplaceIdx < favourites.size()) {
+            favourites.set(favReplaceIdx, e);
+            target = favReplaceIdx;
+        } else {
+            boolean dup = false;
+            for (String[] f : favourites) if (f[0].equals(e[0]) && f[1].equals(e[1])) { dup = true; break; }
+            if (!dup) favourites.add(e);
+            target = favourites.size() - 1;
+        }
+        favReplaceIdx = -1;
+        openListSection(50);
+        row = target; // sim sel=favReplaceIdx / f.length-1
+    }
+
+    // Sim favourites 'Delete <name>?' dialog: dark optionsPanel at top 38%, Yes/No softkeys.
+    private void drawFavDel(Canvas c, int w, int h) {
+        float u = w / 240f;
+        float boxW = w * 0.84f, boxH = 42 * u; // sim padding 12px + 18px text + 12px
+        float bx = (w - boxW) / 2f, by = screenH(h) * 0.38f; // sim optionsPanel top 38%
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.parseColor("#111923"));
+        c.drawRect(bx, by, bx + boxW, by + boxH, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2 * u);
+        p.setColor(Color.parseColor("#DDDDDD"));
+        c.drawRect(bx, by, bx + boxW, by + boxH, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.WHITE);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(18 * u); // sim font-size 18px
+        c.drawText("Delete " + favDelName + "?", w / 2f, by + boxH / 2f + 6 * u, p);
+        p.setTextAlign(Paint.Align.LEFT);
+    }
+
     private void drawList(Canvas c, int w, int h) {
         String titleRight = null;
         if (listSection == 1 || listSection == 37) titleRight = "\u2026"; // sim "..."
@@ -2861,14 +3093,21 @@ public class NokiaUi extends View {
             }
             return;
         }
-        if (listSection >= 25 && listSection <= 29) { // Sim settings rows: value inline on the same line, bracketed on the selection
+        if (listSection >= 25 && listSection <= 29) { // HTML srows(): two-line settings rows, no icons
             final String[] vals = listSection == 25 ? generalSettings : listSection == 26 ? textSettings
                     : listSection == 27 ? mmsSettings : listSection == 28 ? emailSettings : serviceSettings;
-            final String[] its = LIST_ITEMS[listSection];
-            drawItemRows(c, w, h, its.length, i -> {
-                String v = vals[i];
-                return its[i] + (v.length() == 0 ? "" : " " + (i == row ? "\u2039 " : "") + v + (i == row ? " \u203a" : ""));
-            }, null, i -> listIconFor(i));
+            drawSettingsRows(c, w, h, LIST_ITEMS[listSection], vals);
+            return;
+        }
+        if (listSection == 24 || listSection == 51 || listSection == 52 || listSection == 63 || listSection == 64) { // HTML plainPage: fixed 30px text rows, no icons
+            drawPlainRows(c, w, h, LIST_ITEMS[listSection]);
+            return;
+        }
+        if (listSection == 65) { drawPlainRows(c, w, h, favPickNames()); return; } // sim favpick
+        if (listSection == 66) { drawPlainRows(c, w, h, LIST_ITEMS[4]); return; } // sim favgroups: the Groups list
+        if (listSection == 50) { // HTML favourites page: favRows two-line, or '(No favourites)'
+            if (favourites.isEmpty()) drawPlainRows(c, w, h, new String[]{"(No favourites)"});
+            else drawFavRows(c, w, h);
             return;
         }
         if (listSection == 33) { // Sim createmessage: envelope row 0, glyphs, Flash row disabled
@@ -3082,25 +3321,57 @@ public class NokiaUi extends View {
     }
 
     // Sim v4.89 notice box: #eee, #555 border, centred, bottom 12%.
+    // HTML notice: info-style notices carry no check icon (verbatim prefix list).
+    private static final java.util.regex.Pattern NOTICE_INFO = java.util.regex.Pattern.compile(
+            "^(Not available|Enter |Write message first|Check the three values|Now press|Keypad |Call ended|Flight profile|Timed profile|Interval timer|Timer repeated|Countdown finished)");
+
+    // HTML notice: solid dark panel (#141b26, 2px #aeb9c6 border, 6px radius, soft
+    // shadow), centred at 46% of the screen; a green check follows confirmations.
     private void drawNotice(Canvas c, int w, int h) {
         String[] lines = notice.split("\n");
-        float top = statusH(h), bot = softTop(h);
-        float boxW = w * 0.76f, boxH = w * 0.12f * lines.length;
-        float bx = (w - boxW) / 2f, by = bot - (bot - top) * 0.12f - boxH;
+        float u = w / 240f;
+        float padX = 14 * u, padY = 0.012f * screenH(h); // sim padding 1.2vh 14px
+        boolean info = NOTICE_INFO.matcher(notice).find();
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.parseColor("#EEEEEE"));
-        c.drawRect(bx, by, bx + boxW, by + boxH, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTextSize(0.017f * screenH(h)); // sim font-size 1.7vh
+        float lh = 0.023f * screenH(h); // sim line-height 2.3vh
+        float check = 22 * u, gap = 8 * u; // sim check 22px, margin-left 8px
+        float textW = 0;
+        for (String s : lines) textW = Math.max(textW, p.measureText(s));
+        float contentW = Math.min(textW + (info ? 0 : check + gap), w * 0.86f - 2 * padX); // sim max-width 86%
+        float boxW = contentW + 2 * padX;
+        float boxH = 2 * padY + lh * (lines.length - 1) + p.getTextSize() * 1.15f;
+        float bx = (w - boxW) / 2f;
+        float cy = screenH(h) * 0.46f; // sim top 46% translate(-50%,-50%)
+        float by = cy - boxH / 2f;
+        android.graphics.RectF rf = new android.graphics.RectF(bx, by, bx + boxW, by + boxH);
+        p.setColor(Color.argb(153, 0, 0, 0)); // sim box-shadow 0 2px 6px rgba(0,0,0,.6)
+        c.drawRoundRect(new android.graphics.RectF(bx, by + 2 * u, bx + boxW + 4 * u, by + boxH + 4 * u), 6 * u, 6 * u, p);
+        p.setColor(Color.parseColor("#141B26"));
+        c.drawRoundRect(rf, 6 * u, 6 * u, p);
         p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(w * (2f / 240f));
-        p.setColor(Color.parseColor("#555555"));
-        c.drawRect(bx, by, bx + boxW, by + boxH, p);
+        p.setStrokeWidth(2 * u);
+        p.setColor(Color.parseColor("#AEB9C6"));
+        c.drawRoundRect(rf, 6 * u, 6 * u, p);
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.parseColor("#111111"));
-        p.setTextAlign(Paint.Align.CENTER);
-        p.setTextSize(w * 0.055f);
-        float lh = w * 0.055f * 1.15f;
-        float y0 = by + boxH / 2f - (lines.length - 1) * lh / 2f + lh * 0.35f;
-        for (int i = 0; i < lines.length; i++) c.drawText(lines[i], w * 0.5f, y0 + i * lh, p);
+        p.setColor(Color.WHITE);
+        float ty = by + padY + p.getTextSize() * 0.95f;
+        for (String s : lines) { c.drawText(s, bx + padX, ty, p); ty += lh; }
+        if (!info) { // sim listIcons.CHECK at the right of the text
+            float cx = bx + padX + Math.min(textW, contentW) + gap;
+            android.graphics.Path path = new android.graphics.Path();
+            path.moveTo(cx + check * 0.12f, cy + check * 0.02f);
+            path.lineTo(cx + check * 0.42f, cy + check * 0.32f);
+            path.lineTo(cx + check * 0.88f, cy - check * 0.38f);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(2f, check * 0.13f));
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setColor(Color.parseColor("#22CC55"));
+            c.drawPath(path, p);
+            p.setStrokeCap(Paint.Cap.BUTT);
+        }
+        p.setStyle(Paint.Style.FILL);
         p.setTextAlign(Paint.Align.LEFT);
     }
 
@@ -3113,9 +3384,9 @@ public class NokiaUi extends View {
     // Sim v4.89 profiles page: title + rows, active profile carries "  ✓".
     private void drawProfiles(Canvas c, int w, int h) {
         drawTitle(c, w, h, "Profiles");
-        if (profileIcon == null) profileIcon = decodeIcon(PROFILE_ICON_B64);
-        drawItemRows(c, w, h, PROFILE_ROWS.length,
-                i -> PROFILE_ROWS[i] + (i == profile() ? "  \u2713" : ""), null, i -> profileIcon);
+        String[] pr = new String[PROFILE_ROWS.length]; // HTML profiles: plainPage, noIcon, active carries the check
+        for (int i = 0; i < pr.length; i++) pr[i] = PROFILE_ROWS[i] + (i == profile() ? "  \u2713" : "");
+        drawPlainRows(c, w, h, pr);
     }
 
     private String[] alarm() { return actions.getAlarm(); }
@@ -6988,6 +7259,8 @@ public class NokiaUi extends View {
         if (noteMarkMode) return new String[]{"Cancel", noteMarkStarted ? "Copy" : "Start", "Back"};
         if (bluetoothPrompt) return new String[]{"Yes", "", "No"};
         if (mailboxConfirm) return new String[]{"", "Yes", "No"}; // sim soft('','Yes','No')
+        if (favMenuOpen) return new String[]{"", "Select", "Back"}; // sim favMenu soft
+        if (favDelName != null) return new String[]{"Yes", "", "No"}; // sim favDel soft('Yes','','No')
         if (mailboxWizard) return new String[]{"", "", "Back"};
         if (imToast) return new String[]{"", "", ""}; // sim imtoast soft('','','')
         if (openingConvo) return new String[]{"", "", "Back"}; // sim openingconversation soft('','','Back')
@@ -7062,6 +7335,10 @@ public class NokiaUi extends View {
                             || (listSection == 27 && mmsDirty) || (listSection == 28 && emailDirty);
                     return new String[]{"", d ? "OK" : "Select", d ? "Cancel" : "Back"};
                 }
+                if (listSection == 50) return new String[]{favourites.isEmpty() ? "Add" : "Options", "", "Back"}; // sim favourites soft
+                if (listSection == 63 || listSection == 64) return new String[]{"", "Select", "Back"}; // sim favadd/favreplace soft('','Select','Back')
+                if (listSection == 65) return new String[]{"", favPickRows().isEmpty() ? "" : "Select", "Back"}; // sim favpick soft
+                if (listSection == 66) return new String[]{"", "Select", "Back"}; // sim favgroups soft
                 if (listSection == 54) return new String[]{"", "Add", "Back"}; // sim emailmailboxes soft('','Add','Back')
                 if (listSection == 55) return new String[]{"Options", "Save", "Back"}; // sim messagecentreedit soft('Options','Save','Back')
                 if (listSection == 59) return new String[]{"Details", "", "Back"}; // sim messagelog soft('Details','','Back')
