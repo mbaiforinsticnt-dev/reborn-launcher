@@ -74,6 +74,12 @@ wait_runtime() {
 anr_sweep() {
   [ -f "$NOSWEEP" ] && return 0
   WIN=$("${ADB[@]}" shell "dumpsys window windows" 2>/dev/null | tr -d '\r') || return 0
+  # The HOME disambiguation chooser is never legitimate during the proof: as
+  # input target it eats every keypad tap (proven: run 35871754336 final dump).
+  if echo "$WIN" | grep -q "imeInputTarget.*ResolverActivity"; then
+    "${ADB[@]}" shell input keyevent KEYCODE_BACK >/dev/null 2>&1
+    echo "watchdog: dismissed ResolverActivity chooser"
+  fi
   echo "$WIN" | grep -qi "Not Responding" || return 0
   # NB: never reuse $PKG here - this watchdog runs in the same shell as the
   # proof script and clobbering PKG retargets every later launch at the
@@ -111,6 +117,10 @@ anr_sweep() {
 }
 anr_watchdog() {
   set +e
+  # Never trace the watchdog: xtrace echoes the entire dumpsys window dump it
+  # greps every sweep - 47 MB of log spam that truncates the step log in the
+  # Actions UI (proven: run 35871754336).
+  set +x
   while :; do
     anr_sweep
     sleep 4
@@ -252,6 +262,10 @@ for attempt in 1 2 3 4 5 6 7 8; do
 done
 rm -f "$NOSWEEP"
 [ "$INSTALL_OK" = 1 ] || { echo "DIAG: apk install never stuck after 8 attempts"; exit 1; }
+# Our launcher registers as HOME. With no default home set, dismissing the
+# keyguard pops the ResolverActivity chooser, which then sits in the stack and
+# steals the input target (proven: run 35871754336 final window dump).
+"${ADB[@]}" shell cmd role add-role-holder android.app.role.HOME "$PKG" >/dev/null 2>&1 || true
 echo "DIAG: installed: $("${ADB[@]}" shell dumpsys package "$PKG" 2>/dev/null | tr -d '\r' | awk '/versionName/ && !v {print; v=1}' || echo unreadable)"
 "${ADB[@]}" shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER | tr -d '\r' | tail -3
 
