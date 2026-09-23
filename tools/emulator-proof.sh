@@ -27,14 +27,20 @@ sleep 5
 
 # The API-30 AVD's SystemUI hangs and its modal ANR dialog eats every tap
 # (proven on the F21 image): kill it and let a healthy instance restart.
+# API-30-specific: on API 33 this kill triggers a system ANR that the
+# watchdog escalates into a runtime restart (proven: run 35836613774).
 "${ADB[@]}" root >/dev/null 2>&1 || true
 sleep 3
 "${ADB[@]}" wait-for-device
-for p in com.android.systemui com.android.settings; do
-  pid=$("${ADB[@]}" shell pidof "$p" 2>/dev/null | tr -d '\r') || true
-  [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" 2>/dev/null || true
-done
-sleep 6
+SDK=$("${ADB[@]}" shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r')
+echo "DIAG: emulator sdk is $SDK"
+if [ "$SDK" = "30" ]; then
+  for p in com.android.systemui com.android.settings; do
+    pid=$("${ADB[@]}" shell pidof "$p" 2>/dev/null | tr -d '\r') || true
+    [ -n "$pid" ] && "${ADB[@]}" shell kill "$pid" 2>/dev/null || true
+  done
+  sleep 6
+fi
 
 
 # adb shell can be briefly unresponsive right after the SystemUI kill; retry.
@@ -51,6 +57,20 @@ done
 # This image ANRs random system apps and the modal dialog eats every tap.
 # Watchdog sweeps every 4s: kill the ANR'd package and tap "Wait" away.
 NOSWEEP="/tmp/reborn_nosweep"
+
+# Wait out a dead/restarting Android runtime: after the watchdog kills
+# system_server the activity manager is gone for tens of seconds, and any
+# am/pm/dumpsys call in that window fails (proven: exit 20 on am start).
+wait_runtime() {
+  for i in $(seq 1 40); do
+    BC=$("${ADB[@]}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+    if [ "$BC" = "1" ] && "${ADB[@]}" shell service check package 2>/dev/null | tr -d '\r' | grep -q ": found"; then
+      return 0
+    fi
+    sleep 5
+  done
+  return 1
+}
 anr_sweep() {
   [ -f "$NOSWEEP" ] && return 0
   WIN=$("${ADB[@]}" shell "dumpsys window windows" 2>/dev/null | tr -d '\r') || return 0
@@ -69,7 +89,7 @@ anr_sweep() {
       pid=$("${ADB[@]}" shell pidof system_server 2>/dev/null | tr -d '\r')
       [ -n "$pid" ] && "${ADB[@]}" shell kill -9 "$pid" 2>/dev/null
       echo "watchdog: system_server wedged - forced runtime restart"
-      sleep 15
+      wait_runtime
       ;;
     ""|android|com.android.systemui|com.android.settings|com.android.phone|com.android.providers*|com.android.server*)
       : ;;
@@ -148,9 +168,15 @@ ensure_fg() {
   FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | awk '/ResumedActivity/ && !v {print; v=1}'" | tr -d '\r')
   case "$FG" in *"$PKG"*) return 0 ;; esac
   echo "DIAG: foreground is [$FG] - re-foregrounding launcher"
+  if [ -z "$FG" ]; then
+    # Empty dumpsys: the activity manager is down (runtime restarting).
+    # Ride it out instead of letting am start kill the script (exit 20).
+    echo "DIAG: activity manager down - waiting for the runtime"
+    wait_runtime || true
+  fi
   "${ADB[@]}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
   "${ADB[@]}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
-  "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
+  "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
   sleep 4
   FG=$("${ADB[@]}" shell "dumpsys activity activities 2>/dev/null | awk '/ResumedActivity/ && !v {print; v=1}'" | tr -d '\r')
   echo "DIAG foreground after ensure: $FG"
