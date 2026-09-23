@@ -58,7 +58,10 @@ jobs:
       - run: gradle --no-daemon assembleDebug
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          # The API-30 image is chronically unstable (three wedged/crashed
+          # runs on 2026-09-23: system_server dying mid-install, frozen
+          # display, stalled boot). API 33 is materially more stable.
+          api-level: 33
           arch: x86_64
           profile: pixel
           emulator-options: -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
